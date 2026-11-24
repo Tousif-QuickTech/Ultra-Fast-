@@ -1,0 +1,27 @@
+/* Global command-palette search (Ctrl/⌘ + K) */
+(()=>{
+const $=s=>document.querySelector(s),app=()=>window.FMSAPP;let box=null,sel=0,flat=[];
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const hl=(s,q)=>{const i=q?s.toLowerCase().indexOf(q):-1;return i<0?esc(s):esc(s.slice(0,i))+'<mark>'+esc(s.slice(i,i+q.length))+'</mark>'+esc(s.slice(i+q.length))};
+const PG=[['dashboard','speedometer2'],['products','boxes'],['purchase','cart-check'],['import','globe-americas'],['suppliers','building'],['sales','receipt'],['customers','people'],['bill-ledger','journal-bookmark'],['accounts','journal-text'],['income','graph-up-arrow'],['expenses','cash-stack'],['loans','bank'],['hrm','person-badge'],['reports','bar-chart-line'],['data','arrow-down-up'],['logs','clock-history'],['settings','gear']];
+function results(q){const f=app();if(!f)return[];const{t,L,D,can,A}=f,ql=q.trim().toLowerCase(),out=[],push=(g,x)=>{let b=out.find(o=>o.g===g);if(!b)out.push(b={g,items:[]});if(b.items.length<5)b.items.push(x)};
+ PG.filter(p=>can(p[0])&&(!ql||t('nav_'+p[0]).toLowerCase().includes(ql))).forEach(p=>push('gs_pages',{ic:p[1],ti:t('nav_'+p[0]),sub:'',go:p[0]}));
+ if(!ql){if(can('sales'))push('gs_actions',{ic:'plus-circle',ti:t('new_invoice'),sub:t('nav_sales'),go:'sales',nw:1});if(can('customers'))push('gs_actions',{ic:'cash-coin',ti:t('qa_coll'),sub:t('nav_customers'),go:'customers'});return out}
+ const m=s=>s.toLowerCase().includes(ql);
+ if(can('products'))D.products.forEach(p=>{if(m(p.n.bn+' '+p.n.en+' '+(p.sku||'')))push('nav_products',{ic:'boxes',ti:L(p.n),sub:(p.sku||'')+' · '+f.kg(p.kg),go:'products',q:L(p.n),hl:L(p.n)})});
+ if(can('customers'))D.customers.forEach(c=>{if(m(c.bn+' '+c.en+' '+(c.phone||'')))push('nav_customers',{ic:'person',ti:L(c),sub:(c.phone||'')+' · '+f.tk(c.due),go:'customers',hl:L(c)})});
+ if(can('suppliers')&&D.suppliers)D.suppliers.forEach(c=>{if(m(c.bn+' '+c.en))push('nav_suppliers',{ic:'building',ti:L(c),sub:f.tk(c.payable),go:'suppliers',hl:L(c)})});
+ if(can('hrm')&&A()&&D.emp)D.emp.forEach(e=>{if(m(e.n.bn+' '+e.n.en+' '+(e.eid||'')))push('nav_hrm',{ic:'person-badge',ti:L(e.n),sub:e.eid||'',go:'hrm',hl:L(e.n)})});
+ if(can('sales'))D.invoices.forEach((v,i)=>{if(m(v[0]+' '+D.customers[v[1]].bn+' '+D.customers[v[1]].en))push('nav_sales',{ic:'receipt',ti:v[0],sub:L(D.customers[v[1]])+' · '+f.tk(v[2]),go:'sales',inv:i})});
+ return out}
+function render(){const f=app(),q=$('#gsq').value.trim().toLowerCase(),r=results(q);flat=[];$('#gsl').innerHTML=r.length?r.map(b=>`<div class="gs-g">${f.t(b.g)}</div>`+b.items.map(x=>{flat.push(x);const i=flat.length-1;return `<button class="gs-it ${i===sel?'on':''}" data-i="${i}"><span class="gs-ic"><i class="bi bi-${x.ic}"></i></span><span class="gs-t"><b>${hl(x.ti,q)}</b>${x.sub?`<small>${esc(x.sub)}</small>`:''}</span><i class="bi bi-arrow-return-left gs-ret"></i></button>`}).join('')).join(''):`<div class="gs-none"><i class="bi bi-search"></i>${f.t('gs_none')}</div>`}
+function open(){if(!app()||!app().S.user)return;if(!box){box=document.createElement('div');box.className='gs';box.innerHTML=`<div class="gs-box" role="dialog" aria-modal="true"><div class="gs-inp"><i class="bi bi-search"></i><input id="gsq" autocomplete="off" aria-label="Search"><kbd>Esc</kbd></div><div class="gs-list" id="gsl"></div><div class="gs-foot"><span><kbd>↑</kbd><kbd>↓</kbd> <span data-k="gs_nav"></span></span><span><kbd>↵</kbd> <span data-k="gs_open"></span></span></div></div>`;document.body.append(box);box.addEventListener('mousedown',e=>{if(e.target===box)close()});box.addEventListener('click',e=>{const b=e.target.closest('.gs-it');if(b)go(flat[+b.dataset.i])});$('#gsq').addEventListener('input',()=>{sel=0;render()})}
+ const f=app();$('#gsq').placeholder=f.t('search');box.querySelectorAll('[data-k]').forEach(e=>e.textContent=f.t(e.dataset.k));box.classList.add('open');$('#gsq').value='';sel=0;render();setTimeout(()=>$('#gsq').focus(),30)}
+function close(){box&&box.classList.remove('open')}
+function go(x){if(!x)return;const f=app();close();if(x.q!==undefined&&window.UI&&UI.psearch)UI.psearch(x.q);window.WANT_NEW=!!x.nw;const same=location.hash==='#/'+x.go;location.hash='#/'+x.go;if(same)f.route();
+ if(x.hl)setTimeout(()=>{const n=x.hl.toLowerCase(),e=[...document.querySelectorAll('#view tbody tr,#view .item,#view .role-card')].find(r=>r.textContent.toLowerCase().includes(n));if(e){e.scrollIntoView({block:'center',behavior:'smooth'});e.classList.add('flash')}},1100);
+ if(x.inv!==undefined)setTimeout(()=>UI.ACT.ipr({dataset:{i:x.inv,m:'a4'}}),1100)}
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key.toLowerCase()==='k'){e.preventDefault();box&&box.classList.contains('open')?close():open();return}
+ if(!box||!box.classList.contains('open'))return;if(e.key==='Escape')close();else if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();sel=(sel+(e.key==='ArrowDown'?1:-1)+flat.length)%Math.max(1,flat.length);render();const a=document.querySelector('.gs-it.on');a&&a.scrollIntoView({block:'nearest'})}else if(e.key==='Enter'){e.preventDefault();go(flat[sel])}});
+document.addEventListener('click',e=>{if(e.target.closest('#gsearch'))open()});
+})();
