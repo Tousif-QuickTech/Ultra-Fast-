@@ -1,0 +1,9 @@
+{
+  "name": "ultra-fast-factory-ui",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Ultra Fast - Factory Management System UI",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

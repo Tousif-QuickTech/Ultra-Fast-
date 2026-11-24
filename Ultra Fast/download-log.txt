@@ -1,0 +1,129 @@
+🔑 Got authentication token
+
+🔍 Parsed Vercel URL — project: ultrafast-v2, scope: quick-tech-it, build: BiU6PvTry2dakvC95S2asT9nMNRD
+   Resolving teams...
+   Trying BiU6PvTry2dakvC95S2asT9nMNRD in personal account...
+   Trying dpl_BiU6PvTry2dakvC95S2asT9nMNRD in personal account...
+✅ Got deployment info
+
+📦 Deployment ID:  dpl_BiU6PvTry2dakvC95S2asT9nMNRD
+🌐 Deployment URL: ultrafast-v2-na92gn0q3-quick-tech-it.vercel.app
+📁 Project:        ultrafast-v2
+
+📋 Fetching file tree from API...
+
+✅ Got file tree (6 top-level entries)
+
+📁 Output directory: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source
+
+🗑️  Clearing previous download...
+
+⬇️  Downloading files...
+   (Use --verbose to see detailed progress)
+
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\css\app.css
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\app.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\auth.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\brand.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\data.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p10.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p11.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p12.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p13.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p14.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p2.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p3.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p4.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p5.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p6.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p7.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p8.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p9.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\log.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules10.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules11.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules12.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules13.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules14.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules2.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules3.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules4.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules5.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules6.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules7.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules8.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules9.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\search.js
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\.vercelignore
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\HANDOVER.md
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\index.html
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\package.json
+✅ Downloaded: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\vercel.json
+
+🎉 All files processed successfully!
+
+📊 Running comparison...
+
+📁 Total files: 40
+   ✅ Downloaded: 40
+   ⏭️  Skipped: 0
+   ❌ Failed: 0
+💾 Total size: 0.74 MB
+
+📈 File types breakdown:
+   js                34 files
+   json               2 files
+   css                1 files
+   vercelignore       1 files
+   md                 1 files
+   html               1 files
+
+🌳 File structure tree:
+
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\.vercelignore
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\css\app.css
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\app.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\auth.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\brand.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\data.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p10.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p11.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p12.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p13.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p14.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p2.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p3.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p4.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p5.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p6.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p7.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p8.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\i18n.p9.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\log.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules10.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules11.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules12.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules13.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules14.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules2.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules3.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules4.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules5.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules6.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules7.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules8.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\modules9.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\assets\js\search.js
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\HANDOVER.md
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\index.html
+├── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\package.json
+└── 📄 C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\source\vercel.json
+
+✨ Download and verification complete!
+📄 Full log saved to: C:\Users\Quick Tech IT\out\dpl_BiU6PvTry2dakvC95S2asT9nMNRD\download-log.txt
+   (Use --verbose to see file tree and skipped files)
+
