@@ -1876,88 +1876,70 @@ function renderClientSummaryListTable(navHtml) {
   const f = getF();
   if (!f) return '';
   initLedgerData(f);
-  const { t, L, D, n } = f;
+  if (window.FIN) window.FIN.boot(f);
+  const { t, L, D, n, tk } = f;
 
   const q = (REP_EXT.crCustQ || '').toLowerCase().trim();
+  const prods = D.products || [];
+  const invs = D.invoices || [];
 
-  // Exactly matching media_1794818746715_b7347806.jpg
-  const clientRowsData = [
-    {
-      sl: 1,
-      client: 'JME Pack',
-      clientIdx: D.customers.findIndex(c => c.en === 'JME Pack'),
-      phone: '01712-349811',
-      deliveries: [
-        { time: '12:30 PM', billNo: '40', challanNo: '399', productName: 'BOPP GLOSSY FILM', typeUnit: 'KG', qty: 212.14 },
-        { time: '12:30 PM', billNo: '40', challanNo: '404', productName: 'BOPP GLOSSY FILM', typeUnit: 'KG', qty: 94.50 },
-        { time: '12:30 PM', billNo: '40', challanNo: '406', productName: 'BOPP GLOSSY FILM', typeUnit: 'KG', qty: 80.65 }
-      ],
-      openingDue: 1225815.30,
-      grossBill: 160725.35,
-      billDiscount: 0.00,
-      netBill: 160725.35,
-      paymentReceived: 0.00,
-      paymentMethod: '',
-      accountDiscount: 0.00,
-      closingDue: 1386540.65
-    },
-    {
-      sl: 2,
-      client: 'R.K Printing',
-      clientIdx: D.customers.findIndex(c => c.en === 'R.K Printing'),
-      phone: '01811-998822',
-      deliveries: [
-        { time: '12:48 PM', billNo: '47', challanNo: '400', productName: 'BOPP GLOSSY FILM', typeUnit: 'KG', qty: 47.77 }
-      ],
-      openingDue: 302841.85,
-      grossBill: 19824.55,
-      billDiscount: 0.00,
-      netBill: 19824.55,
-      paymentReceived: 30000.00,
-      paymentMethod: 'Cash: ৳ 30,000.00',
-      accountDiscount: 0.00,
-      closingDue: 292666.40
-    },
-    {
-      sl: 3,
-      client: 'Rahman Packaging Ltd',
-      clientIdx: 0,
-      phone: '01711-284501',
-      deliveries: [
-        { time: '10:15 AM', billNo: '51', challanNo: '398', productName: 'Kraft Paper 120 GSM', typeUnit: 'KG', qty: 3500.00 }
-      ],
-      openingDue: 1240000.00,
-      grossBill: 392000.00,
-      billDiscount: 0.00,
-      netBill: 392000.00,
-      paymentReceived: 350000.00,
-      paymentMethod: 'Bank: ৳ 350,000.00',
-      accountDiscount: 0.00,
-      closingDue: 1282000.00
-    },
-    {
-      sl: 4,
-      client: 'Meghna Carton Industries',
-      clientIdx: 1,
-      phone: '01819-662340',
-      deliveries: [
-        { time: '11:20 AM', billNo: '52', challanNo: '395', productName: 'Duplex Board 300 GSM', typeUnit: 'KG', qty: 2500.00 }
-      ],
-      openingDue: 2180000.00,
-      grossBill: 247500.00,
-      billDiscount: 0.00,
-      netBill: 247500.00,
-      paymentReceived: 85000.00,
-      paymentMethod: 'Cash: ৳ 85,000.00',
-      accountDiscount: 0.00,
-      closingDue: 2342500.00
-    }
-  ];
+  // Synchronized dynamically with live Customers, Invoices, Payments, Returns & Adjustments
+  const clientRowsData = (D.customers || []).map((c, cIdx) => {
+    const ledger = window.FIN ? window.FIN.getCustomerTransactions(cIdx, f) : null;
+    const custInvs = invs.map((v, invIdx) => ({ v, invIdx })).filter(x => x.v[1] === cIdx);
+    const deliveries = custInvs.map(({ v, invIdx }) => {
+      const firstLine = (v[6] && v[6][0]) || { p: 0, q: 0 };
+      const prodObj = prods[firstLine.p];
+      const totalKg = sum((v[6] || []).map(l => +l.q || 0));
+      return {
+        invIdx,
+        time: v.dateStr || '—',
+        billNo: v[0],
+        challanNo: v.challan || '—',
+        productName: (v[6] && v[6].length > 1)
+          ? `${L(prodObj?.n) || 'Product'} (+${v[6].length - 1})`
+          : (L(prodObj?.n) || 'Product'),
+        typeUnit: 'KG',
+        qty: totalKg
+      };
+    });
+
+    const grossBill = sum(custInvs.map(({ v }) => v.subtotal !== undefined ? v.subtotal : v[2]));
+    const billDiscount = sum(custInvs.map(({ v }) => v.discount || 0));
+    const netBill = sum(custInvs.map(({ v }) => v[2]));
+    const paymentReceived = ledger ? ledger.totals.payments : sum(custInvs.map(({ v }) => v[3]));
+    const accountDiscount = ledger ? (ledger.totals.returns + ledger.entries.filter(e => e.type === 'discount').reduce((a, b) => a + b.credit, 0)) : 0;
+    const openingDue = c.openingDue || 0;
+    const closingDue = c.due || 0;
+
+    // Derive payment method breakdown
+    const payEntries = ledger ? ledger.entries.filter(e => e.type === 'payment' && e.credit > 0) : [];
+    const methodSummary = payEntries.length
+      ? [...new Set(payEntries.map(e => e.method && e.method.startsWith('m_') ? t(e.method) : e.method).filter(Boolean))].join(', ')
+      : '';
+
+    return {
+      sl: cIdx + 1,
+      client: L(c),
+      clientIdx: cIdx,
+      code: c.code || ('CUST-' + (101 + cIdx)),
+      phone: c.phone || '—',
+      deliveries,
+      openingDue,
+      grossBill,
+      billDiscount,
+      netBill,
+      paymentReceived,
+      paymentMethod: methodSummary,
+      accountDiscount,
+      closingDue
+    };
+  });
 
   let filtered = clientRowsData;
   if (q) {
     filtered = filtered.filter(r => {
-      const allText = (r.client + ' ' + r.phone + ' ' + r.deliveries.map(d => d.billNo + ' ' + d.challanNo + ' ' + d.productName).join(' ')).toLowerCase();
+      const allText = `${r.client} ${r.code} ${r.phone} ${r.deliveries.map(d => `${d.billNo} ${d.challanNo} ${d.productName}`).join(' ')}`.toLowerCase();
       return allText.includes(q);
     });
   }
@@ -1972,56 +1954,77 @@ function renderClientSummaryListTable(navHtml) {
   const totalDeliveriesCount = sum(filtered.map(x => x.deliveries.length));
   const totalDeliveredQty = sum(filtered.map(x => sum(x.deliveries.map(d => d.qty))));
 
+  const mobileCardsHtml = `
+    <div class="d-md-none p-1">
+      ${filtered.length ? filtered.map((row, idx) => `
+        <div class="mob-tx-card mb-2 p-3">
+          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+            <div>
+              <a href="javascript:void(0)" class="fw-bold text-primary text-decoration-none fs-6" data-act="cstmtview" data-i="${row.clientIdx}">${n(idx + 1)}. ${row.client}</a>
+              <div class="small text-secondary"><code>${row.code}</code> · ${row.phone}</div>
+            </div>
+            <b class="${row.closingDue > 0 ? 'dn' : 'up'}">${tk2(row.closingDue)}</b>
+          </div>
+          <div class="row g-1 text-center p-2 rounded border mb-2" style="background:var(--surface-2)">
+            <div class="col-4"><small class="text-secondary d-block">${t('opening_bal') || 'Opening'}</small><b>${tk(row.openingDue)}</b></div>
+            <div class="col-4"><small class="text-secondary d-block">${t('net_bill') || 'Net Bill'}</small><b>${tk(row.netBill)}</b></div>
+            <div class="col-4"><small class="text-secondary d-block">${t('paid')}</small><b class="up">${tk(row.paymentReceived)}</b></div>
+          </div>
+          ${row.deliveries.length ? `<div class="small text-secondary">${row.deliveries.slice(0, 2).map(d => `<div><b>${d.billNo}</b> · ${d.productName} (${d.qty} KG)</div>`).join('')}</div>` : ''}
+        </div>`).join('') : `<div class="text-center text-secondary py-4">${t('empty')}</div>`}
+    </div>`;
+
   const tableRowsHtml = filtered.map((row, idx) => {
-    const deliveryCellsHtml = row.deliveries.map(d => `
+    const deliveryCellsHtml = row.deliveries.length ? row.deliveries.map(d => `
       <div class="client-delivery-box">
         <div class="client-delivery-time">${d.time}</div>
-        <div class="client-delivery-bill">Bill: ${d.billNo} Challan: ${d.challanNo}</div>
-        <div class="client-delivery-prod">Product: ${d.productName}</div>
-        <div class="client-delivery-qty">Type/Unit: ${d.typeUnit || 'KG'} Qty: <b>${typeof d.qty === 'number' ? d.qty.toFixed(2) : d.qty}</b></div>
+        <div class="client-delivery-bill">
+          <a href="javascript:void(0)" class="text-primary text-decoration-none" data-act="idetail" data-i="${d.invIdx}">${d.billNo}</a> · ${t('challan_no') || 'Challan'}: ${d.challanNo}
+        </div>
+        <div class="client-delivery-prod">${d.productName}</div>
+        <div class="client-delivery-qty">${d.typeUnit || 'KG'} Qty: <b>${typeof d.qty === 'number' ? d.qty.toFixed(2) : d.qty}</b></div>
       </div>
-    `).join('');
+    `).join('') : `<span class="text-secondary small">—</span>`;
 
     return `
       <tr>
         <td class="text-center fw-bold text-secondary">${n(idx + 1)}</td>
         <td>
-          <a href="javascript:void(0)" class="fw-bold text-decoration-none text-dark" data-act="cinvs" data-i="${row.clientIdx >= 0 ? row.clientIdx : 0}">
+          <a href="javascript:void(0)" class="fw-bold text-decoration-none text-primary" data-act="cstmtview" data-i="${row.clientIdx}">
             <b>${row.client}</b>
           </a>
-          <br><small class="text-secondary"><i class="bi bi-telephone me-1"></i>${row.phone}</small>
+          <br><small class="text-secondary"><code>${row.code}</code> · ${row.phone}</small>
         </td>
         <td class="delivery-cell">
           ${deliveryCellsHtml}
         </td>
         <td class="r fw-semibold">${tk2(row.openingDue)}</td>
         <td class="r fw-semibold">${tk2(row.grossBill)}</td>
-        <td class="r text-secondary">${row.billDiscount > 0 ? '− ' + tk2(row.billDiscount) : '− ৳ 0.00'}</td>
+        <td class="r text-secondary">${row.billDiscount > 0 ? '− ' + tk2(row.billDiscount) : '—'}</td>
         <td class="r fw-bold">${tk2(row.netBill)}</td>
         <td class="r ${row.paymentReceived > 0 ? 'up fw-bold' : ''}">
           ${tk2(row.paymentReceived)}
           ${row.paymentMethod ? `<br><small class="text-secondary fw-normal">${row.paymentMethod}</small>` : ''}
         </td>
-        <td class="r text-secondary">${row.accountDiscount > 0 ? '− ' + tk2(row.accountDiscount) : '− ৳ 0.00'}</td>
-        <td class="r dn fw-bold fs-6">${tk2(row.closingDue)}</td>
+        <td class="r text-secondary">${row.accountDiscount > 0 ? '− ' + tk2(row.accountDiscount) : '—'}</td>
+        <td class="r ${row.closingDue > 0 ? 'dn' : 'up'} fw-bold fs-6">${tk2(row.closingDue)}</td>
       </tr>
     `;
   }).join('');
 
   return `
     ${navHtml || ''}
-    <div class="card mb-3 border shadow-sm">
+    <div class="card mb-3 border shadow-sm" style="background:var(--surface)">
       <div class="card-body p-3">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2">
           <div class="d-flex align-items-center gap-2 flex-grow-1" style="max-width: 420px">
             <div class="input-group input-group-sm">
               <span class="input-group-text"><i class="bi bi-search"></i></span>
-              <input type="text" class="form-control" data-in="crcustq" value="${REP_EXT.crCustQ || ''}" placeholder="Search client, bill, challan, product..." aria-label="Search client summary">
+              <input type="text" class="form-control" data-in="crcustq" value="${REP_EXT.crCustQ || ''}" placeholder="${t('search_cust_summary') || 'Search client, bill, challan, product...'}" aria-label="Search client summary">
               ${REP_EXT.crCustQ ? `<button class="btn btn-outline-secondary" data-act="crcustqclear"><i class="bi bi-x"></i></button>` : ''}
             </div>
           </div>
-          <div class="d-flex align-items-center gap-2">
-            <span class="badge bg-secondary-subtle text-secondary border px-2 py-1"><i class="bi bi-file-earmark-check me-1"></i>1. Client Summary List</span>
+          <div class="d-flex align-items-center gap-2 flex-wrap">
             <button class="btn btn-sm btn-outline-primary" data-act="clientsumcsv"><i class="bi bi-file-earmark-excel me-1"></i>Excel / CSV</button>
             <button class="btn btn-sm btn-primary" data-act="clientsumprint"><i class="bi bi-printer me-1"></i>${t('print')}</button>
           </div>
@@ -2030,46 +2033,43 @@ function renderClientSummaryListTable(navHtml) {
     </div>
 
     <div class="strip mb-3">
-      <div><span>Total Clients</span><b class="text-primary">${n(filtered.length)}</b></div>
+      <div><span>${t('total_clients') || 'Total Clients'}</span><b class="text-primary">${n(filtered.length)}</b></div>
       <div><span>${t('gross_bill') || 'Gross Bill'}</span><b>${tk2(totGrossBill)}</b></div>
       <div><span>${t('net_bill') || 'Net Bill'}</span><b>${tk2(totNetBill)}</b></div>
       <div><span>${t('paid') || 'Payment Received'}</span><b class="up">${tk2(totPaymentRecv)}</b></div>
       <div><span>${t('closing_due') || 'Closing Due'}</span><b class="dn">${tk2(totClosingDue)}</b></div>
     </div>
 
-    <div class="d-flex justify-content-between align-items-center mb-2 px-1">
-      <h5 class="fw-bold mb-0 text-dark">1. Client Summary List</h5>
-      <span class="badge bg-light text-secondary border">Statement Replica</span>
-    </div>
+    ${mobileCardsHtml}
 
-    <div class="tw border rounded shadow-sm">
+    <div class="d-none d-md-block tw border rounded shadow-sm">
       <table class="client-summary-tbl mb-0" id="rtbl">
         <thead>
           <tr>
-            <th style="width: 45px" class="text-center">SL</th>
-            <th style="width: 150px">Client</th>
-            <th>All Bill / Challan / Product / Type / Unit</th>
-            <th class="r">Opening Due</th>
-            <th class="r">Gross Bill</th>
-            <th class="r">Bill Discount</th>
-            <th class="r">Net Bill</th>
-            <th class="r">Payment Received / Method</th>
-            <th class="r">Account Discount</th>
-            <th class="r">Closing Due</th>
+            <th style="width: 45px" class="text-center">#</th>
+            <th style="width: 160px">${t('customer') || 'Client'}</th>
+            <th>${t('deliveries_bills') || 'Invoices / Challan / Items'}</th>
+            <th class="r">${t('opening_bal') || 'Opening Due'}</th>
+            <th class="r">${t('gross_bill') || 'Gross Bill'}</th>
+            <th class="r">${t('discount') || 'Bill Discount'}</th>
+            <th class="r">${t('net_bill') || 'Net Bill'}</th>
+            <th class="r">${t('paid') || 'Payments'}</th>
+            <th class="r">${t('returns_adj') || 'Returns & Adj'}</th>
+            <th class="r">${t('closing_due') || 'Closing Due'}</th>
           </tr>
         </thead>
         <tbody>
-          ${tableRowsHtml || `<tr><td colspan="10" class="text-center py-4 text-muted">${t('empty')}</td></tr>`}
+          ${tableRowsHtml || `<tr><td colspan="10" class="text-center py-4 text-secondary">${t('empty')}</td></tr>`}
           <tr class="ft">
             <td></td>
-            <td><b>Total:</b></td>
-            <td><small class="text-secondary">${n(totalDeliveriesCount)} Deliveries · ${totalDeliveredQty.toFixed(2)} KG</small></td>
+            <td><b>${t('tot') || 'Total'}:</b></td>
+            <td><small class="text-secondary">${n(totalDeliveriesCount)} ${t('invoices') || 'Invoices'} · ${totalDeliveredQty.toFixed(1)} KG</small></td>
             <td class="r">${tk2(totOpeningDue)}</td>
             <td class="r">${tk2(totGrossBill)}</td>
-            <td class="r">${totBillDisc > 0 ? '− ' + tk2(totBillDisc) : '− ৳ 0.00'}</td>
+            <td class="r">${totBillDisc > 0 ? '− ' + tk2(totBillDisc) : '—'}</td>
             <td class="r">${tk2(totNetBill)}</td>
             <td class="r up">${tk2(totPaymentRecv)}</td>
-            <td class="r">${totAcDisc > 0 ? '− ' + tk2(totAcDisc) : '− ৳ 0.00'}</td>
+            <td class="r">${totAcDisc > 0 ? '− ' + tk2(totAcDisc) : '—'}</td>
             <td class="r dn fw-bold">${tk2(totClosingDue)}</td>
           </tr>
         </tbody>
@@ -2431,7 +2431,7 @@ function renderCompanyWiseSalesReport() {
       </tr>
       ${isExpanded ? `
         <tr class="table-active">
-          <td colspan="9" class="p-3 bg-white">
+          <td colspan="9" class="p-3" style="background:var(--surface)">
             <div class="p-3 rounded border" style="background:var(--surface-2)">
               <div class="d-flex justify-content-between align-items-center mb-3">
                 <h6 class="fw-bold mb-0 text-primary"><i class="bi bi-folder2-open me-2"></i>${co.name} – Purchase & Invoice Breakdown</h6>
@@ -2449,9 +2449,9 @@ function renderCompanyWiseSalesReport() {
     <!-- Top View Switcher -->
     <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
       <div class="seg">
-        <button class="${REP_EXT.saleView==='company'?'on':''}" data-act="saleviewtab" data-v="company"><i class="bi bi-building me-1"></i>Company-Wise Sales Report</button>
-        <button class="${REP_EXT.saleView==='client_list'?'on':''}" data-act="saleviewtab" data-v="client_list"><i class="bi bi-card-checklist me-1"></i>1. Client Summary List (Photo Replica)</button>
-        <button class="${REP_EXT.saleView==='product'?'on':''}" data-act="saleviewtab" data-v="product"><i class="bi bi-boxes me-1"></i>Product Sales Summary</button>
+        <button class="${REP_EXT.saleView==='company'?'on':''}" data-act="saleviewtab" data-v="company"><i class="bi bi-building me-1"></i>${t('rc_sales') || 'Company-Wise Sales'}</button>
+        <button class="${REP_EXT.saleView==='client_list'?'on':''}" data-act="saleviewtab" data-v="client_list"><i class="bi bi-card-checklist me-1"></i>${t('client_summary_list') || 'Client Summary'}</button>
+        <button class="${REP_EXT.saleView==='product'?'on':''}" data-act="saleviewtab" data-v="product"><i class="bi bi-boxes me-1"></i>${t('prod_sales_sum') || 'Product Sales Summary'}</button>
       </div>
       <div class="d-flex gap-2">
         <button class="btn btn-sm btn-outline-primary" data-act="saleexpcsv"><i class="bi bi-file-earmark-excel me-1"></i>Excel / CSV</button>
@@ -2593,7 +2593,7 @@ function renderStockMovementDetailedReport(navHtml) {
       <tr>
         <td><small class="text-secondary"><i class="bi bi-clock me-1"></i>${m.dt}</small></td>
         <td><code>${m.ref}</code></td>
-        <td><span class="badge bg-light text-dark border"><i class="bi bi-truck me-1"></i>${m.challan || '—'}</span></td>
+        <td><span class="badge bg-secondary-subtle text-body border"><i class="bi bi-truck me-1"></i>${m.challan || '—'}</span></td>
         <td><b>${L(p.n)}</b></td>
         <td><code>${m.sku}</code></td>
         <td><span class="badge bg-secondary-subtle text-secondary border">${m.brand}</span></td>
@@ -2825,7 +2825,7 @@ window.UI.customReportRenderer = (code, dayIndex) => {
   }
   if (code === 'stockledger') return renderStockMovementDetailedReport('');
   if (code === 'exprep') return renderExpenseReportTable();
-  if (code === 'purchrep') return renderPurchaseReportTable();
+  if (code === 'purchrep') { location.hash = '#/purchase-reports'; return ''; }
   if (code === 'dclose' || code === 'closingrep') return renderClosingReportWithWeightAndTaka(dayIndex || 0);
   if (code === 'supledger') return renderSupplierLedgerTable();
   if (code === 'custledger') return renderCustomerLedgerTable();

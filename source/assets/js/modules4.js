@@ -37,7 +37,7 @@ const RS={
 };
 U.RS = RS;
 const net=e=>window.UI.payNet?window.UI.payNet(e):e.basic+(e.ot||0)+(e.bonus||0)-(e.ded||0)-(e.adv||0);
-const cats=()=>F.A()?['inv','sales','cust','purch','sup','fin','hrm','dclose','dstock','dfin','exprep','purchrep','supledger','custledger','stockledger','partyprices']:['inv','sales','cust','dstock','exprep','purchrep','custledger','stockledger'];
+const cats=()=>F.A()?['inv','sales','cust','sup','fin','hrm','dclose','dstock','dfin','exprep','supledger','custledger','stockledger','partyprices']:['inv','sales','cust','dstock','exprep','custledger','stockledger'];
 
 function getActiveDateRange() {
   const f = F || (window.UI && window.UI.F && window.UI.F());
@@ -199,13 +199,11 @@ const RG=[
   ['rg_fin_ledger',[
     ['dclose','calendar-check','gold','DAILY'],
     ['exprep','cash-stack','purple','EXPENSE'],
-    ['purchrep','truck-front','blue','PURCHASE'],
     ['fin','journal-text','green','FINANCE'],
     ['supledger','building-check','purple','LEDGER'],
     ['dfin','graph-up-arrow','green','FINANCE'],
     ['partyprices','tags','purple','PRICING'],
     ['hrm','person-badge','green','PAYROLL'],
-    ['purch','truck','blue','PURCHASE'],
     ['sup','building','purple','SUPPLIER']
   ]]
 ];
@@ -289,16 +287,18 @@ function reports(){
     if(f){currIcon=f[1];currCatKey=g;break;}
   }
 
-  // Quick report navigation pills by category (Req 8)
+  // Quick report navigation pills by category (Purchase Reports migrated to top-level module)
   const quickPills=[
     {k:'sales',ic:'receipt',lbl:t('rc_sales'),cat:'rg_sales_cust'},
     {k:'cust',ic:'people',lbl:t('rc_cust'),cat:'rg_sales_cust'},
     {k:'custledger',ic:'person-lines-fill',lbl:t('rc_custledger')||'Client Statement',cat:'rg_sales_cust'},
     {k:'stockledger',ic:'layers',lbl:t('rc_stockledger')||'Stock Movement',cat:'rg_stock_inv'},
     {k:'inv',ic:'boxes',lbl:t('rc_inv'),cat:'rg_stock_inv'},
+    {k:'dstock',ic:'box-seam',lbl:t('rc_dstock')||'Daily Stock',cat:'rg_stock_inv'},
     {k:'dclose',ic:'calendar-check',lbl:t('rc_dclose'),cat:'rg_fin_ledger'},
     {k:'exprep',ic:'cash-stack',lbl:t('rc_exprep'),cat:'rg_fin_ledger'},
-    {k:'purchrep',ic:'truck-front',lbl:t('rc_purchrep')||'Purchases',cat:'rg_fin_ledger'}
+    {k:'fin',ic:'journal-text',lbl:t('rc_fin')||'Finance',cat:'rg_fin_ledger'},
+    {k:'supledger',ic:'building-check',lbl:t('rc_supledger')||'Supplier Ledger',cat:'rg_fin_ledger'}
   ].filter(p=>ok.includes(p.k));
 
   const catFilter = RS.catFilter || '';
@@ -389,22 +389,21 @@ function reports(){
         <div class="rep-title-icon"><i class="bi bi-${currIcon}"></i></div>
         <div class="rep-view-info">
           <h2>${t('rc_'+RS.c)}</h2>
-          <p><span class="badge bg-secondary-subtle text-secondary border me-1">${t(currCatKey)}</span> ${t('rd_'+RS.c)}</p>
+          <p><span class="badge bg-secondary-subtle text-body border me-1">${t(currCatKey)}</span> ${t('rd_'+RS.c)}</p>
         </div>
       </div>
       <div class="rep-view-actions">
         <select class="form-select rep-switcher-select" data-in="repswitch" aria-label="Switch report">
           ${switcherHtml}
         </select>
-        <button class="btn-o" data-act="rbrowse" title="${t('rep_all_tab')}"><i class="bi bi-grid-3x3-gap"></i> <span class="d-none d-sm-inline">${t('rep_all_tab')}</span></button>
         <button class="btn-o" data-act="rprint" title="${t('rep_print')}"><i class="bi bi-printer"></i> <span class="d-none d-sm-inline">${t('rep_print')}</span></button>
         <button class="btn-o" data-act="rexp" data-f="pdf"><i class="bi bi-file-earmark-pdf text-danger"></i> PDF</button>
         <button class="btn-a" data-act="rexp" data-f="xls"><i class="bi bi-file-earmark-excel"></i> Excel</button>
-        <button class="icon-btn" data-act="reprefresh" title="${t('rep_refresh')}"><i class="bi bi-arrow-clockwise"></i></button>
+        <button class="btn-o" data-go="purchase-reports" title="${t('nav_purchase-reports') || 'Purchase Reports'}"><i class="bi bi-file-earmark-spreadsheet"></i> <span class="d-none d-xl-inline">${t('nav_purchase-reports') || 'Purchase Reports'}</span></button>
       </div>
     </div>
 
-    <!-- Category Tabs Navigation (Req 8) -->
+    <!-- Clean Categorized Navigation -->
     <div class="rep-cat-filter-tabs mb-2 d-flex align-items-center gap-1 flex-wrap">
       <button class="btn btn-sm ${!catFilter?'btn-primary':'btn-outline-secondary'}" data-act="rcatfilter" data-c="">
         <i class="bi bi-grid me-1"></i>${t('all')}
@@ -420,7 +419,7 @@ function reports(){
       </button>
     </div>
 
-    <!-- Quick Report Navigation Segmented Pills -->
+    <!-- Report Pills for Active Category -->
     <div class="rep-nav-pills-wrap">
       <div class="rep-nav-pills">
         ${filteredPills.map(p=>`
@@ -429,10 +428,6 @@ function reports(){
             <span>${p.lbl}</span>
           </button>
         `).join('')}
-        <button class="rep-nav-pill rep-nav-pill-more" data-act="rbrowse">
-          <i class="bi bi-grid-3x3-gap"></i>
-          <span>${t('rep_all_tab')}...</span>
-        </button>
       </div>
     </div>
 
@@ -465,9 +460,15 @@ function reports(){
 P.reports=f=>{
   I(f);
   if(window.WANT_REP){
+    if(window.WANT_REP==='purchrep'||window.WANT_REP==='purch'){
+      window.WANT_REP=null;
+      location.hash='#/purchase-reports';
+      return;
+    }
     RS.c=window.WANT_REP;
     window.WANT_REP=null;
   }
+  if(RS.c==='purchrep'||RS.c==='purch') RS.c='sales';
   RS.tblQ='';
   reports();
 };
@@ -690,9 +691,16 @@ ACT.rexp=x=>{
       csv('report-'+RS.c+'-date-'+RS.d+'.csv',[...document.querySelectorAll('#rwrap tr,#rwrap .stmt h4')].map(e=>e.tagName==='H4'?[e.textContent]:[...e.children].map(c=>c.textContent)));
       toast(t('csv_done'),'download');
     }else{
-      toast(t('pdf_done'),'file-earmark-pdf');
+      const title=t('rc_'+RS.c)+' – '+getActiveDateRange().label;
+      const co=(ST.co||{});
+      const content=`<div class="inv2"><h2>${title}</h2><div class="text-secondary small mb-2">${co.name||''} · ${co.addr||''}</div><hr>${$('#rwrap')?.innerHTML||''}</div>`;
+      if(window.UI.showDoc){
+        window.UI.showDoc(title,content,content,false);
+      }else{
+        window.print();
+      }
     }
-  },800);
+  },300);
 };
 /* ================= Import / Export ================= */
 const IS={tab:'import',ds:'products',file:null,stage:'pick',pr:0},XS={ds:'products',fmt:'csv'};
@@ -742,7 +750,7 @@ ${fi('inv','terms',t('terms'),'text','col-12')}${fi('inv','foot',t('footer'),'te
 P.settings=f=>{I(f);settings()};
 ACT.stab=x=>{ST.tab=x.dataset.k;settings()};IN.sf=x=>{ST[x.dataset.g][x.dataset.k]=x.type==='checkbox'?x.checked:(x.type==='number'?+x.value:x.value)};
 IN.logo=x=>{const f=x.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{$('#logoPrev').innerHTML=`<img src="${r.result}" style="width:100%;height:100%;object-fit:cover">`};r.readAsDataURL(f)};
-ACT.ssave=()=>{const{t,toast}=F;if(ST.tab==='st_company'){let e=0;const n=$('#f_co_name'),m=$('#f_co_em');[n,m].forEach(i=>i.classList.remove('is-invalid'));if(!ST.co.name.trim()){n.classList.add('is-invalid');n.nextElementSibling.textContent=t('req');e=1}if(!/^\S+@\S+\.\S+$/.test(ST.co.em)){m.classList.add('is-invalid');m.nextElementSibling.textContent=t('invalid_email');e=1}if(e)return}if(ST.tab==='st_invoice'){localStorage.setItem('fms-vat-enabled',String(ST.inv.vatEnabled!==false));localStorage.setItem('fms-vat-pct',String(ST.inv.vat||5))}toast(t('saved_set'),'check-circle');settings()};
+ACT.ssave=()=>{const{t,toast}=F;if(ST.tab==='st_company'){let e=0;const n=$('#f_co_name'),m=$('#f_co_em');[n,m].forEach(i=>i.classList.remove('is-invalid'));if(!ST.co.name.trim()){n.classList.add('is-invalid');n.nextElementSibling.textContent=t('req');e=1}if(!/^\S+@\S+\.\S+$/.test(ST.co.em)){m.classList.add('is-invalid');m.nextElementSibling.textContent=t('invalid_email');e=1}if(e)return}if(ST.tab==='st_invoice'){localStorage.setItem('fms-vat-enabled',String(ST.inv.vatEnabled===true));localStorage.setItem('fms-vat-pct',String(ST.inv.vat||5))}toast(t('saved_set'),'check-circle');settings()};
 ACT.plang=x=>{if(F.S.lang!==x.dataset.v){F.S.lang=x.dataset.v;localStorage.setItem('fms-lang',x.dataset.v);F.all(false)}};ACT.ptheme=x=>{if(F.S.theme!==x.dataset.v){$('#theme').click();settings()}};
 IN.utog=x=>{ST.users[+x.dataset.i].on=x.checked};
 ACT.uadd=()=>{const{t,toast}=F;modal(t('add_user'),field('un',t('uname'),'<input id="un" class="form-control">')+field('ue',t('email'),'<input id="ue" class="form-control">')+field('ur',t('urole'),`<select id="ur" class="form-select">${opts([['manager',t('role_manager')],['admin',t('role_admin')]])}</select>`),()=>{['un','ue'].forEach(i=>$('#'+i).classList.remove('is-invalid'));let e=0;const n=$('#un').value.trim(),m=$('#ue').value.trim();if(!n)e=bad('un',t('req'));if(!/^\S+@\S+\.\S+$/.test(m))e=bad('ue',t('invalid_email'));if(e)return false;ST.users.push({n:{bn:n,en:n},em:m,r:$('#ur').value,on:true});toast(t('user_added'),'person-check');settings()})};

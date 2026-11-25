@@ -1,8 +1,9 @@
-/* Phase 6 & Requirements 1-2:
-   - Customer-Wise Invoice List & Filters (Req 1)
-   - Invoice Details Modal with Line Items, VAT, Discount & Due (Req 1)
-   - Transaction-based Payment History, Partial Payments & Reversal Workflow (Req 2)
-   - A4 / Thermal Print Previews & Payment Receipts (Req 1 & 2)
+/* Phase 6 & Enhanced Sales/Invoice Module:
+   - Customer-Wise Invoice List & Responsive Mobile Cards
+   - Invoice Details Modal with Line Items, Settings-controlled VAT, Discount & Due
+   - Transaction-based Payment History, Partial Payments & Reversal Workflow
+   - A4 Print Preview Only (Thermal Removed) & Payment Receipts
+   - Role-governed Invoice Edit/Delete with Atomic Stock & Ledger Sync
    - Add Product / Customer / Supplier forms
 */
 (()=>{
@@ -30,43 +31,57 @@ function nowStr(d = new Date()) {
 function I(f){
   F=f;U.boot(f);U.init2(f);U.init3(f);if(U.init13)U.init13(f);
   const D=f.D;
-  if(seeded)return;
+  if(seeded){
+    if(window.FIN) window.FIN.boot(f);
+    return;
+  }
   seeded=true;
 
   if(!D.invoiceSeq) D.invoiceSeq = 1200;
   if(!D.paySeq) D.paySeq = 1000;
 
+  const vatOn = window.FIN ? window.FIN.isVatOn() : false;
+  const vatPct = vatOn ? (window.FIN ? window.FIN.getVatPct() : 5) : 0;
+
   // Ensure every invoice is enriched with line items, timestamps, and an immutable payment history ledger
   D.invoices.forEach((v,i)=>{
-    const p=(v[1]*2+i)%D.products.length,pr=D.products[p].price;
-    const q=Math.max(50,Math.round(v[2]/1.05/pr/10)*10);
-    const a=Math.round(q*pr*1.05);
-    v[6]=[{p,q,pr}];
-    v[2]=a; // grand total
-    const targetPaid = v[4]==='paid'?a:v[4]==='due'?0:Math.min(v[3],a-1000);
-    v[3]=targetPaid; // paid
+    if (!v[6] || !v[6].length) {
+      const p=(v[1]*2+i)%D.products.length,pr=D.products[p].price;
+      const q=Math.max(50,Math.round(v[2]/(vatOn?(1+vatPct/100):1)/pr/10)*10);
+      const sub=Math.round(q*pr);
+      const vatAmt=vatOn?Math.round(sub*vatPct/100):0;
+      const a=sub+vatAmt;
+      v[6]=[{p,q,pr}];
+      v[2]=a; // grand total
+      const targetPaid = v[4]==='paid'?a:v[4]==='due'?0:Math.min(v[3],Math.max(0,a-1000));
+      v[3]=targetPaid; // paid
+      v[5]=Math.round(q*(pr-D.products[p].cost));
+      v.subtotal = sub;
+      v.discount = v.discount || 0;
+      v.discPct = v.discPct || 0;
+      v.carry = v.carry || 0;
+      v.vatPct = vatPct;
+      v.vat = vatAmt;
+    }
 
     const dObj = new Date(2026, 9, 28 - i, 11, 30 - i * 15);
-    v.createdTs = dObj.getTime();
-    v.dateStr = dObj.toLocaleDateString(F.S.lang==='bn'?'bn-BD':'en-IN',{day:'numeric',month:'short',year:'numeric'});
-    v.discount = v.discount || 0;
-    v.subtotal = q * pr;
-    v.vat = a - v.subtotal + v.discount;
+    if (!v.createdTs) v.createdTs = dObj.getTime();
+    if (!v.dateStr) v.dateStr = new Date(v.createdTs).toLocaleDateString(F.S.lang==='bn'?'bn-BD':'en-IN',{day:'numeric',month:'short',year:'numeric'});
     const demoChallans = ['CH-399', 'CH-400', 'CH-404', 'CH-406', 'CH-395', 'CH-391'];
     v.challan = v.challan || demoChallans[i % demoChallans.length] || ('CH-' + (390 + i));
 
-    // Seed immutable payment transactions (Requirement 2)
+    // Seed immutable payment transactions
     if (!v.payments) {
       v.payments = [];
-      if (targetPaid > 0) {
+      if (v[3] > 0) {
         const payId = 'PAY-2026-' + (++D.paySeq);
         v.payments.push({
           id: payId,
           invNo: v[0],
           c: v[1],
-          dt: dObj.getTime(),
-          dtStr: nowStr(dObj),
-          amt: targetPaid,
+          dt: v.createdTs,
+          dtStr: nowStr(new Date(v.createdTs)),
+          amt: v[3],
           m: v[7] || (i % 2 === 0 ? 'm_bank' : 'm_cash'),
           ref: 'TXN-' + (84100 + i),
           u: 'আসির আহমেদ তৌসিফ',
@@ -80,12 +95,14 @@ function I(f){
       }
     }
   });
+
+  if (window.FIN) window.FIN.boot(f);
 }
 
 const loc=()=>((F && F.S) || (window.UI?.F?.()?.S))?.lang==='bn'?'bn-BD':'en-IN';
 const lines=(v)=>v[6]||(v[6]=(()=>{
   const D=(F && F.D) || (window.UI?.F?.()?.D),p=v[1]%D.products.length,pr=D.products[p].price;
-  return[{p,q:Math.max(50,Math.round(v[2]/1.05/pr/10)*10),pr}];
+  return[{p,q:Math.max(50,Math.round(v[2]/pr/10)*10),pr}];
 })());
 const dt=(i, v)=>v?.dateStr || new Date(2026,9,28-i).toLocaleDateString(loc(),{day:'numeric',month:'short',year:'numeric'});
 
@@ -146,14 +163,13 @@ const INV_CSS=`.inv2{width:794px;box-sizing:border-box;background:#FAF7F2;color:
 .i2-seal-stamp{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;width:86px;height:86px;border-radius:50%;border:2px dashed #0E9F9A;color:#0E9F9A;font-size:9px;font-weight:800;letter-spacing:.05em;text-transform:uppercase;transform:rotate(-5deg);background:rgba(14,159,154,0.04)}
 .i2-seal-stamp i{font-size:20px;margin-bottom:2px}
 .i2-foot{margin-top:24px;padding-top:10px;border-top:1px solid #E6DFD5;color:#7A7062;font-size:10.5px;text-align:center;display:flex;justify-content:space-between;align-items:center}
-@page{size:A4 portrait;margin:0}
+@page{size:A4 portrait;margin:10mm 12mm}
 @media print{
-  body{margin:0!important;background:#FAF7F2!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
-  .inv2{width:100%!important;min-height:auto!important;background:#FAF7F2!important;box-shadow:none!important;border-radius:0!important;padding:28px 36px!important;border-top:6px solid #1B3A6B!important;page-break-after:avoid!important}
+  body{margin:0!important;background:#fff!important;-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+  .inv2{width:100%!important;max-width:100%!important;min-height:auto!important;background:#FAF7F2!important;box-shadow:none!important;border-radius:0!important;padding:18px 22px!important;border-top:6px solid #1B3A6B!important;page-break-inside:avoid!important;page-break-after:auto!important}
   .i2-t tbody tr:nth-child(even){background:#F4EFEB!important}
-  .i2-tot-table,.i2-t{page-break-inside:avoid!important}
-}
-.inv2.th{width:302px;padding:14px;font:12px/1.45 'Courier New',monospace;border-top:0}.inv2.th hr{border:0;border-top:1px dashed #555;margin:8px 0}.inv2.th .tr{display:flex;justify-content:space-between;gap:8px}.inv2.th .tc{text-align:center}`;
+  .i2-tot-table,.i2-signatures{page-break-inside:avoid!important}
+}`;
 
 const existingInvCss = document.getElementById('inv-css');
 if (existingInvCss) {
@@ -210,7 +226,9 @@ function paper(i,mode){
     method = v[7];
   }
 
-  const adj=currentBill-sub,hasVat=localStorage.getItem('fms-vat-enabled')==='true'&&(iv.vatEnabled===true);
+  const vatEnabled = window.FIN ? window.FIN.isVatOn() : false;
+  const hasVat = vatEnabled && vat > 0;
+  const vatPctShow = isDraft ? (window.UI?.IV?.vat ?? 0) : (v?.vatPct || 5);
   const statusClass = status === 'paid' ? 'i2-status-paid' : status === 'partial' ? 'i2-status-partial' : 'i2-status-due';
   const statusLabel = status === 'paid' ? (t('paid') || 'PAID') : status === 'partial' ? (t('partial') || 'PARTIAL') : (t('due') || 'DUE');
   const bObj = (typeof B !== 'undefined' ? B : (window.B || {}));
@@ -324,7 +342,7 @@ function paper(i,mode){
                 <td class="text-danger">− ${tk(disc)}</td>
               </tr>
             ` : ''}
-            ${hasVat&&adj?`<tr><td>${t('vat_adj')}</td><td>${tk(adj)}</td></tr>`:''}
+            ${hasVat ? `<tr><td>${t('vat') || 'VAT'} (${vatPctShow}%)</td><td>+ ${tk(vat)}</td></tr>` : ''}
             ${carry > 0 ? `
               <tr>
                 <td>${t('carry') || 'Carrying Cost'}</td>
@@ -335,14 +353,15 @@ function paper(i,mode){
               <td>${t('current_bill') || 'Current Invoice Total'}</td>
               <td>${tk(currentBill)}</td>
             </tr>
+            ${prevDue > 0 ? `
             <tr class="row-past-due">
               <td>${t('past_due') || 'Previous Due / Balance'}</td>
-              <td>${prevDue > 0 ? '+ ' : ''}${tk(prevDue)}</td>
+              <td>+ ${tk(prevDue)}</td>
             </tr>
             <tr class="row-total-payable">
               <td>${t('total_payable') || 'Total Amount Payable'}</td>
               <td>${tk(totalPayable)}</td>
-            </tr>
+            </tr>` : ''}
             <tr class="row-paid">
               <td>${t('paid') || 'Amount Paid Today'}</td>
               <td>− ${tk(paid)}</td>
@@ -409,7 +428,7 @@ U.showDoc=(title,html,printHtml,small)=>{
   const f = F || (window.UI && window.UI.F && window.UI.F());
   const t = f && f.t ? f.t : (k => k);
   if ($('#mt')) $('#mt').textContent=title;
-  if ($('#mb')) $('#mb').innerHTML=`<div class="inv-fit">${html}</div>`;
+  if ($('#mb')) $('#mb').innerHTML=`<div class="inv-wrap"><div class="inv-fit">${html}</div></div>`;
   if ($('#mf')) $('#mf').innerHTML=`<button class="btn-o" data-bs-dismiss="modal">${t('cancel')}</button>${printHtml?`<button class="btn-a" id="dprint"><i class="bi bi-printer"></i>${t('print')}</button>`:''}`;
   const el=$('#modal');
   if (el) {
@@ -623,10 +642,51 @@ function list(){
     return `<span class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1">${t('inv_status_due')}</span>`;
   };
 
-  // Table rows
+  const canED = window.FIN ? window.FIN.canEditDel(F) : F.A();
+
+  // Mobile cards + Desktop Table rows
+  const mobileCards = `
+    <div class="d-md-none p-2">
+      ${filtered.length ? filtered.map(({ v, i }) => {
+        const cust = D.customers[v[1]];
+        const due = Math.max(0, v[2] - v[3]);
+        return `
+          <div class="mob-tx-card mb-2 p-3">
+            <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+              <div>
+                <a href="javascript:void(0)" class="fw-bold text-primary text-decoration-none fs-6" data-act="idetail" data-i="${i}">${v[0]}</a>
+                <div class="small text-secondary"><i class="bi bi-truck me-1"></i>${v.challan || '—'} · ${dt(i, v)}</div>
+              </div>
+              <div>${statusBadge(v[4])}</div>
+            </div>
+            <div class="fw-semibold mb-2">
+              <a href="javascript:void(0)" class="text-decoration-none text-body" data-act="ivscustset" data-i="${v[1]}">${cust ? L(cust) : '—'}</a>
+              ${cust?.phone ? `<small class="text-secondary d-block"><i class="bi bi-telephone me-1"></i>${cust.phone}</small>` : ''}
+            </div>
+            <div class="d-flex justify-content-between text-center p-2 rounded border mb-2" style="background:var(--surface-2)">
+              <div class="flex-fill"><small class="text-secondary d-block">${t('amount')}</small><b>${tk(v[2])}</b></div>
+              <div class="vr mx-1"></div>
+              <div class="flex-fill"><small class="text-secondary d-block">${t('paid')}</small><b class="up">${tk(v[3])}</b></div>
+              <div class="vr mx-1"></div>
+              <div class="flex-fill"><small class="text-secondary d-block">${t('due_amt')}</small><b class="${due > 0 ? 'dn' : 'up'}">${tk(due)}</b></div>
+            </div>
+            <div class="d-flex flex-wrap gap-1 pt-2 border-top">
+              <button class="btn btn-sm btn-outline-primary flex-fill" data-act="idetail" data-i="${i}"><i class="bi bi-eye me-1"></i>${t('inv_detail')}</button>
+              ${due > 0 ? `<button class="btn btn-sm btn-success flex-fill" data-act="payadd" data-i="${i}"><i class="bi bi-cash-coin me-1"></i>${t('pay_now')}</button>` : ''}
+              <button class="btn btn-sm btn-outline-secondary" data-act="ipr" data-m="a4" data-i="${i}" title="${t('print_a4')}"><i class="bi bi-file-earmark-text"></i></button>
+              <button class="btn btn-sm btn-outline-success" data-act="ipr" data-m="wa" data-i="${i}" title="${t('wa_share')}"><i class="bi bi-whatsapp"></i></button>
+              ${canED ? `
+                <button class="btn btn-sm btn-outline-secondary" data-act="iedit" data-i="${i}" title="${t('edit_invoice')}"><i class="bi bi-pencil"></i></button>
+                <button class="btn btn-sm btn-outline-danger" data-act="idel" data-i="${i}" title="${t('delete_invoice')}"><i class="bi bi-trash3"></i></button>
+              ` : ''}
+            </div>
+          </div>`;
+      }).join('') : `<div class="text-center text-secondary py-4">${t('empty')}</div>`}
+    </div>`;
+
   const tableRows = filtered.map(({ v, i }) => {
     const cust = D.customers[v[1]];
-    const due = v[2] - v[3];
+    const due = Math.max(0, v[2] - v[3]);
     const paymentsCount = (v.payments && v.payments.filter(p=>p.status==='posted').length) || (v[3]>0?1:0);
     return `
       <tr>
@@ -635,7 +695,7 @@ function list(){
             <a href="javascript:void(0)" class="fw-bold text-decoration-none" data-act="idetail" data-i="${i}" title="${t('inv_detail')}">
               <i class="bi bi-receipt me-1 text-primary"></i>${v[0]}
             </a>
-            <span class="badge bg-light text-dark border"><i class="bi bi-truck me-1"></i>${v.challan || '—'}</span>
+            <span class="badge bg-secondary-subtle text-body border"><i class="bi bi-truck me-1"></i>${v.challan || '—'}</span>
           </div>
           <small class="text-secondary">${dt(i, v)}</small>
         </td>
@@ -653,12 +713,13 @@ function list(){
           <button class="btn btn-sm btn-outline-primary py-1 px-2" data-act="idetail" data-i="${i}" title="${t('inv_detail')}">
             <i class="bi bi-eye"></i>
           </button>
+          ${canED ? `
           <button class="btn btn-sm btn-outline-secondary py-1 px-2 ms-1" data-act="iedit" data-i="${i}" title="${t('edit_invoice')}">
             <i class="bi bi-pencil"></i>
           </button>
           <button class="btn btn-sm btn-outline-danger py-1 px-2 ms-1" data-act="idel" data-i="${i}" title="${t('delete_invoice')}">
             <i class="bi bi-trash3"></i>
-          </button>
+          </button>` : ''}
           ${due > 0 ? `
             <button class="btn btn-sm btn-success py-1 px-2 ms-1" data-act="payadd" data-i="${i}" title="${t('add_payment')}">
               <i class="bi bi-cash-coin me-1"></i>${t('pay_now')}
@@ -673,8 +734,8 @@ function list(){
 
   $('#view').innerHTML = `
     <div class="enter">
-      <div class="page-h d-flex justify-content-between align-items-center flex-wrap gap-3">
-        <div class="d-flex align-items-center gap-3">
+      <div class="page-h d-flex justify-content-between align-items-center flex-wrap gap-2 gap-sm-3">
+        <div class="d-flex align-items-center gap-2 gap-sm-3 flex-wrap">
           <button class="btn-a" data-act="inew"><i class="bi bi-plus-lg me-1"></i>${t('new_invoice')}</button>
           <div>
             <h2 class="mb-0">${t('nav_sales')}</h2>
@@ -688,8 +749,8 @@ function list(){
       ${custBanner}
       ${filterToolbar}
       ${summaryStrip}
-      ${panel('', `
-        <div class="tw">
+      ${panel('', mobileCards + `
+        <div class="d-none d-md-block tw">
           <table class="tbl" id="inv-table">
             <thead>
               <tr>
@@ -713,8 +774,10 @@ function list(){
 P.sales = f => {
   I(f);
   if(window.WANT_NEW){
+    if(U.resetIV) U.resetIV(window.WANT_NEW_CUST);
     SV='new';
     window.WANT_NEW=false;
+    window.WANT_NEW_CUST=undefined;
   }
   if(SV==='new'){
     orig(f);
@@ -726,13 +789,16 @@ P.sales = f => {
 };
 
 addEventListener('hashchange',()=>{SV='list'});
-ACT.inew=()=>{SV='new';P.sales(F)};
+ACT.inew=()=>{if(U.resetIV)U.resetIV();SV='new';P.sales(F)};
 ACT.ilist=()=>{SV='list';P.sales(F)};
+U.salesList=()=>{SV='list';if(F)list()};
 ACT.doprint=()=>window.print();
 
 ACT.inewfor = (x) => {
+  const ci = +x.dataset.i;
+  if(U.resetIV) U.resetIV(ci);
   SV = 'new';
-  window.WANT_NEW_CUST = +x.dataset.i;
+  window.WANT_NEW_CUST = ci;
   P.sales(F);
 };
 
@@ -765,10 +831,14 @@ ACT.idetail = (x) => {
   if (!v) return;
   const c = D.customers[v[1]];
   const ls = lines(v);
-  const sub = sum(ls.map(l => l.q * l.pr));
-  const hasVat = localStorage.getItem('fms-vat-enabled') !== 'false' && (U.ST?.inv?.vatEnabled !== false);
-  const adj = v[2] - sub;
-  const due = v[2] - v[3];
+  const sub = v.subtotal !== undefined ? v.subtotal : sum(ls.map(l => l.q * l.pr));
+  const disc = v.discount || 0;
+  const carry = v.carry || 0;
+  const vatAmt = v.vat || 0;
+  const vatOn = window.FIN ? window.FIN.isVatOn() : false;
+  const hasVat = vatOn && vatAmt > 0;
+  const due = Math.max(0, v[2] - v[3]);
+  const canED = window.FIN ? window.FIN.canEditDel(F) : F.A();
   const payments = v.payments || [];
 
   const paymentRows = payments.map(p => {
@@ -795,9 +865,9 @@ ACT.idetail = (x) => {
             <button class="btn btn-sm btn-outline-secondary py-0 px-1" data-act="payrec" data-pid="${p.id}" data-i="${idx}" title="${t('print_receipt')}">
               <i class="bi bi-printer"></i>
             </button>
-            <button class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" data-act="payrev" data-pid="${p.id}" data-i="${idx}" title="${t('pay_reverse')}">
+            ${canED ? `<button class="btn btn-sm btn-outline-danger py-0 px-1 ms-1" data-act="payrev" data-pid="${p.id}" data-i="${idx}" title="${t('pay_reverse')}">
               <i class="bi bi-arrow-counterclockwise"></i>
-            </button>` : ''}
+            </button>` : ''}` : ''}
         </td>
       </tr>`;
   }).join('');
@@ -811,7 +881,7 @@ ACT.idetail = (x) => {
             <div class="d-flex align-items-center gap-2 flex-wrap mb-1">
               <h4 class="mb-0 text-primary fw-bold"><i class="bi bi-receipt me-2"></i>${v[0]}</h4>
               <span class="badge bg-primary-subtle text-primary border"><i class="bi bi-truck me-1"></i>${t('challan_no')}: <b>${v.challan || '—'}</b></span>
-              <button class="btn btn-sm btn-outline-primary py-0 px-2" data-act="iedit" data-i="${idx}" title="${t('edit')}"><i class="bi bi-pencil me-1"></i>${t('edit')}</button>
+              ${canED ? `<button class="btn btn-sm btn-outline-primary py-0 px-2" data-act="iedit" data-i="${idx}" title="${t('edit')}"><i class="bi bi-pencil me-1"></i>${t('edit')}</button>` : ''}
             </div>
             <span class="text-secondary"><i class="bi bi-calendar3 me-1"></i>${dt(idx, v)}</span>
           </div>
@@ -872,9 +942,17 @@ ACT.idetail = (x) => {
               <div class="d-flex justify-content-between mb-1">
                 <span>${t('subtotal')}</span><b>${tk(sub)}</b>
               </div>
-              ${(hasVat && adj) ? `
+              ${disc > 0 ? `
+                <div class="d-flex justify-content-between mb-1 dn">
+                  <span>${t('discount')}</span><b>− ${tk(disc)}</b>
+                </div>` : ''}
+              ${hasVat ? `
                 <div class="d-flex justify-content-between mb-1">
-                  <span>${t('vat_adj')}</span><b>${tk(adj)}</b>
+                  <span>${t('vat') || 'VAT'} (${v.vatPct || 5}%)</span><b>+ ${tk(vatAmt)}</b>
+                </div>` : ''}
+              ${carry > 0 ? `
+                <div class="d-flex justify-content-between mb-1">
+                  <span>${t('carry') || 'Carrying'}</span><b>+ ${tk(carry)}</b>
                 </div>` : ''}
               <div class="d-flex justify-content-between mb-1 pt-1 border-top fw-bold text-primary fs-6">
                 <span>${t('grand')}</span><span>${tk(v[2])}</span>
@@ -922,9 +1000,12 @@ ACT.idetail = (x) => {
   $('#mt').innerHTML = `<i class="bi bi-receipt text-primary me-2"></i>${t('inv_detail')} – ${v[0]}`;
   $('#mb').innerHTML = modalHtml;
   $('#mf').innerHTML = `
-    <button class="btn btn-outline-secondary me-auto" data-act="ipr" data-m="a4" data-i="${idx}"><i class="bi bi-file-earmark-text me-1"></i>${t('print_a4')}</button>
-    <button class="btn btn-outline-primary" data-act="iedit" data-i="${idx}"><i class="bi bi-pencil me-1"></i>${t('edit_invoice')}</button>
-    <button class="btn btn-outline-danger" data-act="idel" data-i="${idx}"><i class="bi bi-trash3 me-1"></i>${t('delete_invoice')}</button>
+    <div class="d-flex gap-2 me-auto flex-wrap">
+      <button class="btn btn-outline-secondary" data-act="ipr" data-m="a4" data-i="${idx}"><i class="bi bi-file-earmark-text me-1"></i>${t('print_a4')}</button>
+      <button class="btn btn-outline-success" data-act="ipr" data-m="wa" data-i="${idx}"><i class="bi bi-whatsapp me-1"></i>${t('wa_share')}</button>
+    </div>
+    ${canED ? `<button class="btn btn-outline-primary" data-act="iedit" data-i="${idx}"><i class="bi bi-pencil me-1"></i>${t('edit_invoice')}</button>
+    <button class="btn btn-outline-danger" data-act="idel" data-i="${idx}"><i class="bi bi-trash3 me-1"></i>${t('delete_invoice')}</button>` : ''}
     <button class="btn btn-secondary" data-bs-dismiss="modal">${t('close')}</button>`;
 
   const el = $('#modal');
@@ -935,6 +1016,10 @@ ACT.idetail = (x) => {
 };
 
 ACT.iedit = (x) => {
+  if (window.FIN && !window.FIN.canEditDel(F)) {
+    F.toast(F.t('no_edit_del_perm') || F.t('admin_only'), 'shield-exclamation');
+    return;
+  }
   const { D } = F;
   const idx = +x.dataset.i;
   const v = D.invoices[idx];
@@ -952,11 +1037,13 @@ ACT.iedit = (x) => {
     iv.challan = v.challan || '';
     iv.c = v[1];
     iv.lines = JSON.parse(JSON.stringify(v[6] || [{ p: 0, q: 500, pr: null }]));
-    iv.disc = v.discount || 0;
+    const sub = v.subtotal || sum(iv.lines.map(l => l.q * (l.pr || D.products[l.p].price)));
+    iv.disc = v.discPct !== undefined ? v.discPct : (v.discount && sub ? Math.round((v.discount / sub) * 1000) / 10 : 0);
     iv.carry = v.carry || 0;
-    iv.vat = v.vat ? Math.round(v.vat / ((v.subtotal || v[2]) * 0.01)) : 5;
+    iv.vat = v.vatPct !== undefined ? v.vatPct : (window.FIN ? window.FIN.getVatPct() : 5);
     iv.mode = v[4] === 'paid' ? 'cash' : (v[4] === 'due' ? 'credit' : 'part');
     iv.paid = v[3];
+    iv.extraPrevColl = 0;
     iv.method = v[7] || 'm_cash';
   }
 
@@ -965,12 +1052,16 @@ ACT.iedit = (x) => {
 };
 
 ACT.idel = (x) => {
+  if (window.FIN && !window.FIN.canEditDel(F)) {
+    F.toast(F.t('no_edit_del_perm') || F.t('admin_only'), 'shield-exclamation');
+    return;
+  }
   const { t, L, D, toast, tk } = F;
   const idx = +x.dataset.i;
   const v = D.invoices[idx];
   if (!v) return;
   const c = D.customers[v[1]];
-  const due = v[2] - v[3];
+  const due = Math.max(0, v[2] - v[3]);
 
   modal(
     t('del_inv_confirm_title'),
@@ -979,7 +1070,7 @@ ACT.idel = (x) => {
         <i class="bi bi-exclamation-triangle-fill fs-3 text-warning"></i>
         <div>${t('del_inv_confirm_msg')}</div>
       </div>
-      <div class="card p-3 bg-light border mb-2">
+      <div class="card p-3 border mb-3" style="background:var(--surface-2)">
         <div class="d-flex justify-content-between align-items-center mb-2 pb-2 border-bottom">
           <b class="fs-6 text-primary">${v[0]}</b>
           <span class="badge bg-secondary-subtle text-secondary border"><i class="bi bi-truck me-1"></i>${v.challan || '—'}</span>
@@ -991,35 +1082,122 @@ ACT.idel = (x) => {
           <span>${t('due_amt')}: <b class="dn">${tk(due)}</b></span>
         </div>
       </div>
+      <div>
+        <label class="form-label small fw-semibold">${t('del_reason') || t('reason') || 'Deletion Reason (Audit Log)'}</label>
+        <input type="text" id="del_inv_reason" class="form-control" placeholder="Optional reason for audit trail...">
+      </div>
     </div>`,
     () => {
-      // 1. Restore product stock
-      if (v[6]) {
-        v[6].forEach(l => {
-          if (D.products[l.p]) {
+      const reason = ($('#del_inv_reason')?.value || '').trim();
+      const delUser = F.S.user ? L(F.S.user.n) : 'Admin';
+      const runner = () => {
+        const invRef = D.invoices[idx];
+        const custIdx = invRef[1];
+        const cust = D.customers[custIdx];
+        // 1. Restore product stock & log stock movements
+        (invRef[6] || []).forEach(l => {
+          if (window.FIN) {
+            window.FIN.recordStockMove(F, {
+              p: l.p, qty: l.q, isIn: true, kind: 'sale_rev',
+              ty: t('inv_deleted_stock') || 'Invoice Deleted (Stock Restored)',
+              ref: invRef[0], challan: invRef.challan || '',
+              party: cust ? L(cust) : 'Customer', partyType: 'customer',
+              remarks: `Restored stock on deletion of ${invRef[0]}${reason ? ' (' + reason + ')' : ''}`
+            });
+          } else if (D.products[l.p]) {
             D.products[l.p].kg += l.q;
+            D.products[l.p].sold = Math.max(0, (D.products[l.p].sold || 0) - l.q);
           }
         });
-      }
-      // 2. Adjust customer due balance
-      if (c && due > 0) {
-        c.due = Math.max(0, c.due - due);
-      }
-      // 3. Immutable audit logging
-      if (typeof LOG !== 'undefined') {
-        LOG.add({
-          uid: F.S.user?.id,
-          u: F.S.user?.n?.bn,
-          r: F.S.role,
-          m: 'sales',
-          t: 'delete',
-          recordType: 'invoice',
-          recordId: v[0],
-          msg: `ইনভয়েস মুছে ফেলা হয়েছে: ${v[0]} (চালান: ${v.challan || '—'})`
+
+        // 2. Reverse posted payments on Cash/Bank & preserve counter-entries in archive
+        let reversedPaid = 0;
+        if (invRef.payments && invRef.payments.length) {
+          invRef.payments.forEach(p => {
+            if (p.status === 'posted' && p.amt > 0) {
+              reversedPaid += p.amt;
+              if (window.FIN) window.FIN.postCashBank(D, p.m || 'm_cash', -p.amt);
+              if (D.cashBank) {
+                D.cashBank.cash = Math.max(0, D.cashBank.cash);
+                D.cashBank.bank = Math.max(0, D.cashBank.bank);
+              }
+              p.status = 'reversed';
+              p.revReason = 'Invoice deleted' + (reason ? ': ' + reason : '');
+              p.revBy = delUser;
+              p.revAt = Date.now();
+            }
+          });
+        } else if (invRef[3] > 0) {
+          reversedPaid = invRef[3];
+          if (window.FIN) window.FIN.postCashBank(D, invRef[7] || 'm_cash', -invRef[3]);
+          if (D.cashBank) {
+            D.cashBank.cash = Math.max(0, D.cashBank.cash);
+            D.cashBank.bank = Math.max(0, D.cashBank.bank);
+          }
+        }
+
+        // Remove unlinked dueCollections targeting only this deleted invoice
+        if (D.dueCollections) {
+          D.dueCollections = D.dueCollections.filter(dc => dc.invNo !== invRef[0]);
+        }
+
+        // 3. Adjust daily metrics & customer volume
+        if (D.daily && D.daily.sales && D.daily.sales.length) {
+          const sIdx = D.daily.sales.length - 1;
+          D.daily.sales[sIdx] = Math.max(0, D.daily.sales[sIdx] - invRef[2]);
+        }
+        if (D.daily && D.daily.coll && D.daily.coll.length && reversedPaid > 0) {
+          const cIdx = D.daily.coll.length - 1;
+          D.daily.coll[cIdx] = Math.max(0, D.daily.coll[cIdx] - reversedPaid);
+        }
+        if (cust) {
+          cust.v = Math.max(0, (cust.v || 0) - invRef[2]);
+        }
+
+        // 4. Archive deleted invoice & remove from active list
+        if (!D.deletedInvoices) D.deletedInvoices = [];
+        D.deletedInvoices.unshift({
+          invNo: invRef[0],
+          challan: invRef.challan || '',
+          custIdx,
+          custName: cust ? L(cust) : '—',
+          total: invRef[2],
+          paidReversed: reversedPaid,
+          deletedAt: Date.now(),
+          deletedBy: delUser,
+          reason,
+          snapshot: window.FIN ? window.FIN.deepClone(invRef) : invRef
         });
-      }
-      // 4. Remove from invoices array
-      D.invoices.splice(idx, 1);
+
+        D.invoices.splice(idx, 1);
+
+        // 5. Reconcile Customer Due cleanly
+        if (window.FIN) {
+          window.FIN.reconcileCustomer(custIdx, F);
+        } else if (cust) {
+          cust.due = Math.max(0, cust.due - due);
+        }
+
+        // 6. Immutable Audit Log
+        if (typeof LOG !== 'undefined') {
+          LOG.add({
+            uid: F.S.user?.id,
+            u: F.S.user?.n?.bn,
+            r: F.S.role,
+            m: 'sales',
+            t: 'delete',
+            recordType: 'invoice',
+            recordId: invRef[0],
+            reason,
+            changes: { total: invRef[2], paidReversed: reversedPaid },
+            msg: `ইনভয়েস মুছে ফেলা হয়েছে: ${invRef[0]} (চালান: ${invRef.challan || '—'})${reason ? ' · কারণ: ' + reason : ''}`
+          });
+        }
+      };
+
+      const res = window.FIN ? window.FIN.tx(F, runner) : (runner(), true);
+      if (res === false) return false;
+
       toast(t('inv_deleted_ok'), 'trash3');
       list();
     },
@@ -1088,83 +1266,85 @@ ACT.payadd = (x) => {
 
     if (!v.payments) v.payments = [];
 
-    // 1. Create separate immutable payment record
-    const paymentRecord = {
-      id: payId,
-      invNo: v[0],
-      c: v[1],
-      dt: now.getTime(),
-      dtStr: nowStr(now),
-      amt: amt,
-      m: method,
-      ref: ref,
-      u: F.S.user ? (F.S.user.n[F.S.lang] || F.S.user.n.bn) : 'User',
-      note: note,
-      status: 'posted',
-      revRef: null,
-      revReason: null,
-      revBy: null,
-      revAt: null
-    };
-    v.payments.push(paymentRecord);
+    // 1. Run atomic payment recording & ledger reconciliation
+    const runner = () => {
+      const paymentRecord = {
+        id: payId,
+        invNo: v[0],
+        c: v[1],
+        dt: now.getTime(),
+        dtStr: nowStr(now),
+        amt: amt,
+        m: method,
+        ref: ref,
+        u: F.S.user ? (F.S.user.n[F.S.lang] || F.S.user.n.bn) : 'User',
+        note: note,
+        status: 'posted',
+        revRef: null,
+        revReason: null,
+        revBy: null,
+        revAt: null
+      };
+      v.payments.push(paymentRecord);
 
-    // 2. Recalculate total paid, remaining due and invoice status
-    const activePaid = sum(v.payments.filter(p => p.status === 'posted').map(p => p.amt));
-    v[3] = activePaid;
-    const remDue = v[2] - activePaid;
-    v[4] = remDue <= 0 ? 'paid' : (activePaid > 0 ? 'partial' : 'due');
+      const activePaid = sum(v.payments.filter(p => p.status === 'posted').map(p => p.amt));
+      v[3] = activePaid;
+      const remDue = Math.max(0, v[2] - activePaid);
+      v[4] = remDue <= 0 ? 'paid' : (activePaid > 0 ? 'partial' : 'due');
 
-    // 3. Update customer due
-    const prevCustDue = c.due;
-    c.due = Math.max(0, c.due - amt);
-    if (c.due <= 0) c.days = 0;
+      const prevCustDue = c.due;
+      if (window.FIN) window.FIN.postCashBank(D, method, amt);
+      else if (method === 'm_cash') D.cashBank.cash += amt;
+      else D.cashBank.bank += amt;
 
-    // 4. Update cash/bank account balance
-    const cb = D.cashBank;
-    if (method === 'm_cash') {
-      cb.cash += amt;
-    } else {
-      cb.bank += amt;
-    }
+      D.daily.coll[D.daily.coll.length - 1] += amt;
 
-    // 5. Update daily collection
-    D.daily.coll[D.daily.coll.length - 1] += amt;
-
-    // 6. Record in due collections ledger (WITHOUT double-counting sales revenue)
-    if (!D.dueCollections) D.dueCollections = [];
-    D.dueCollections.unshift({
-      id: 'COLL-' + Date.now().toString(36).toUpperCase(),
-      custId: v[1],
-      custName: L(c),
-      invNo: v[0],
-      prevDue: prevCustDue,
-      amt: amt,
-      remDue: c.due,
-      dt: now.getTime(),
-      dtStr: nowStr(now),
-      m: method,
-      ref: ref,
-      by: paymentRecord.u,
-      remarks: note
-    });
-
-    // 7. Activity Log (Audit Trail)
-    if (typeof LOG !== 'undefined') {
-      LOG.add({
-        uid: F.S.user?.id,
-        u: F.S.user?.n?.bn,
-        r: F.S.role,
-        m: 'sales',
-        t: 'save',
-        recordType: 'payment',
-        recordId: payId,
-        changes: { before: v[2] - (activePaid - amt), after: remDue },
-        msg: `ইনভয়েস ${v[0]}-এ পেমেন্ট গ্রহণ: ${tk(amt)} (${t(method)})`
+      if (!D.dueCollections) D.dueCollections = [];
+      D.dueCollections.unshift({
+        id: 'COLL-' + Date.now().toString(36).toUpperCase(),
+        linkedPayId: payId,
+        custId: v[1],
+        custName: L(c),
+        invNo: v[0],
+        prevDue: prevCustDue,
+        amt: amt,
+        remDue: Math.max(0, prevCustDue - amt),
+        dt: now.getTime(),
+        dtStr: nowStr(now),
+        m: method,
+        ref: ref,
+        by: paymentRecord.u,
+        remarks: note
       });
-    }
+
+      if (window.FIN) {
+        window.FIN.reconcileCustomer(v[1], F);
+      } else {
+        c.due = Math.max(0, c.due - amt);
+        if (c.due <= 0) c.days = 0;
+      }
+
+      if (typeof LOG !== 'undefined') {
+        LOG.add({
+          uid: F.S.user?.id,
+          u: F.S.user?.n?.bn,
+          r: F.S.role,
+          m: 'sales',
+          t: 'save',
+          recordType: 'payment',
+          recordId: payId,
+          changes: { before: v[2] - (activePaid - amt), after: remDue },
+          msg: `ইনভয়েস ${v[0]}-এ পেমেন্ট গ্রহণ: ${tk(amt)} (${t(method)})`
+        });
+      }
+    };
+
+    const res = window.FIN ? window.FIN.tx(F, runner) : (runner(), true);
+    if (res === false) return false;
 
     toast(t('coll_done'), 'check-circle');
-    list();
+    if ($('#inv-table')) list();
+    else F.route(false);
   }, t('save'));
 };
 
@@ -1216,75 +1396,78 @@ ACT.payrev = (x) => {
       return false;
     }
 
-    const now = new Date();
-    const revUser = F.S.user ? (F.S.user.n[F.S.lang] || F.S.user.n.bn) : 'Admin';
-    const revId = 'REV-2026-' + (++D.paySeq);
+    const runner = () => {
+      const now = new Date();
+      const revUser = F.S.user ? (F.S.user.n[F.S.lang] || F.S.user.n.bn) : 'Admin';
+      const revId = 'REV-2026-' + (++D.paySeq);
 
-    // 1. Mark original payment as reversed
-    pay.status = 'reversed';
-    pay.revRef = revId;
-    pay.revReason = reason;
-    pay.revBy = revUser;
-    pay.revAt = now.getTime();
+      pay.status = 'reversed';
+      pay.revRef = revId;
+      pay.revReason = reason;
+      pay.revBy = revUser;
+      pay.revAt = now.getTime();
 
-    // 2. Create traceable counter-entry in payment history
-    const counterEntry = {
-      id: revId,
-      invNo: v[0],
-      c: v[1],
-      dt: now.getTime(),
-      dtStr: nowStr(now),
-      amt: -pay.amt,
-      m: pay.m,
-      ref: 'Counter-entry for ' + pay.id,
-      u: revUser,
-      note: 'Reversal: ' + reason,
-      status: 'reversal',
-      revRef: pay.id,
-      revReason: reason,
-      revBy: revUser,
-      revAt: now.getTime()
+      const counterEntry = {
+        id: revId,
+        invNo: v[0],
+        c: v[1],
+        dt: now.getTime(),
+        dtStr: nowStr(now),
+        amt: -pay.amt,
+        m: pay.m,
+        ref: 'Counter-entry for ' + pay.id,
+        u: revUser,
+        note: 'Reversal: ' + reason,
+        status: 'reversal',
+        revRef: pay.id,
+        revReason: reason,
+        revBy: revUser,
+        revAt: now.getTime()
+      };
+      v.payments.push(counterEntry);
+
+      const activePaid = sum(v.payments.filter(p => p.status === 'posted').map(p => p.amt));
+      v[3] = activePaid;
+      const remDue = Math.max(0, v[2] - activePaid);
+      v[4] = remDue <= 0 ? 'paid' : (activePaid > 0 ? 'partial' : 'due');
+
+      if (window.FIN) {
+        window.FIN.postCashBank(D, pay.m || 'm_cash', -pay.amt);
+        if (D.cashBank) {
+          D.cashBank.cash = Math.max(0, D.cashBank.cash);
+          D.cashBank.bank = Math.max(0, D.cashBank.bank);
+        }
+        window.FIN.reconcileCustomer(v[1], F);
+      } else {
+        const c = D.customers[v[1]];
+        if (c) c.due += pay.amt;
+        const cb = D.cashBank;
+        if (pay.m === 'm_cash') cb.cash = Math.max(0, cb.cash - pay.amt);
+        else cb.bank = Math.max(0, cb.bank - pay.amt);
+      }
+
+      if (typeof LOG !== 'undefined') {
+        LOG.add({
+          uid: F.S.user?.id,
+          u: F.S.user?.n?.bn,
+          r: F.S.role,
+          m: 'sales',
+          t: 'delete',
+          recordType: 'payment_reversal',
+          recordId: revId,
+          reason: reason,
+          changes: { before: activePaid + pay.amt, after: activePaid },
+          msg: `পেমেন্ট রিভার্সাল (${pay.id}): -${tk(pay.amt)} | কারণ: ${reason}`
+        });
+      }
     };
-    v.payments.push(counterEntry);
 
-    // 3. Recalculate invoice paid amount, due and status
-    const activePaid = sum(v.payments.filter(p => p.status === 'posted').map(p => p.amt));
-    v[3] = activePaid;
-    const remDue = v[2] - activePaid;
-    v[4] = remDue <= 0 ? 'paid' : (activePaid > 0 ? 'partial' : 'due');
-
-    // 4. Restore customer due
-    const c = D.customers[v[1]];
-    if (c) {
-      c.due += pay.amt;
-    }
-
-    // 5. Reverse the affected cash/bank account balance
-    const cb = D.cashBank;
-    if (pay.m === 'm_cash') {
-      cb.cash = Math.max(0, cb.cash - pay.amt);
-    } else {
-      cb.bank = Math.max(0, cb.bank - pay.amt);
-    }
-
-    // 6. Record in Audit Log
-    if (typeof LOG !== 'undefined') {
-      LOG.add({
-        uid: F.S.user?.id,
-        u: F.S.user?.n?.bn,
-        r: F.S.role,
-        m: 'sales',
-        t: 'delete',
-        recordType: 'payment_reversal',
-        recordId: revId,
-        reason: reason,
-        changes: { before: activePaid + pay.amt, after: activePaid },
-        msg: `পেমেন্ট রিভার্সাল (${pay.id}): -${tk(pay.amt)} | কারণ: ${reason}`
-      });
-    }
+    const res = window.FIN ? window.FIN.tx(F, runner) : (runner(), true);
+    if (res === false) return false;
 
     toast(t('rev_success'), 'check-circle');
-    list();
+    if ($('#inv-table')) list();
+    else F.route(false);
   }, t('rev_confirm'));
 };
 
@@ -1365,21 +1548,14 @@ ACT.payrec = (x) => {
   U.showDoc(`${t('pay_receipt')} – ${pay.id}`, receiptHtml, receiptHtml);
 };
 
-/* ---- WhatsApp and A4 Doc Print (A4 Only, Thermal Removed) ---- */
+/* ---- WhatsApp Assistant and A4 Doc Print (A4 Only, Thermal Removed) ---- */
 ACT.ipr=x=>{
-  const{t,L,lg,D,tk}=F,i=+x.dataset.i,v=D.invoices[i],m=x.dataset.m;
+  const{t,D}=F,i=+x.dataset.i,v=D.invoices[i],m=x.dataset.m;
   if(!v)return;
   if(m==='wa'){
-    const c=D.customers[v[1]],msg=lg([
-      `আসসালামু আলাইকুম, ${c.bn}। ইনভয়েস ${v[0]} (চালান: ${v.challan||'—'}): মোট ${tk(v[2])}, পরিশোধ ${tk(v[3])}, বকেয়া ${tk(v[2]-v[3])}। ধন্যবাদ – ${B.name}।`,
-      `Hello ${c.en}. Invoice ${v[0]} (Challan: ${v.challan||'—'}): total ${tk(v[2])}, paid ${tk(v[3])}, due ${tk(v[2]-v[3])}. Thank you – ${B.name}.`
-    ]);
-    const phone=c&&c.phone?c.phone.replace(/\D/g,''):'';
-    const fullPhone=phone.startsWith('88')?phone:('88'+(phone.startsWith('0')?phone:'0'+phone));
-    window.open('https://wa.me/'+fullPhone+'?text='+encodeURIComponent(msg),'_blank');
-    return;
+    if(U.openWaShareModal){ U.openWaShareModal(i); return; }
   }
-  U.showDoc(v[0]+' – '+t('print_a4'),paper(i,'a4'),paper(i,'a4'),false);
+  U.showDoc(v[0]+' – '+t('print_a4'),paper(i),paper(i),false);
 };
 
 /* ---- Add forms ---- */
@@ -1388,36 +1564,47 @@ const clr=ids=>ids.forEach(i=>$('#'+i)&&$('#'+i).classList.remove('is-invalid'))
 
 ACT.padd=()=>{
   const{t,D,toast}=F;
-  modal(t('add_product'),txt('pn',t('pname'))+field('pc',t('category'),`<select id="pc" class="form-select">${opts(['paper','board','film','raw'].map(k=>[k,t('cat_'+k)]))}</select>`)+`<div class="row"><div class="col-6">${num('pk',t('open_stock'),0)}</div><div class="col-6">${num('pm',t('min_stock'),0)}</div><div class="col-6">${num('pco',t('cost_price'))}</div><div class="col-6">${num('ppr',t('sell_price'))}</div></div>`,()=>{
+  let imgData='';
+  const imgBlock=`<div class="mb-2"><label class="form-label">${t('prod_img')||'Product Image'}</label><div class="d-flex align-items-center gap-3 flex-wrap"><div id="pimg_prev" class="border rounded d-flex align-items-center justify-content-center" style="width:56px;height:56px;overflow:hidden;background:var(--surface-2)"><i class="bi bi-box-seam text-secondary fs-4"></i></div><label class="btn btn-sm btn-outline-primary mb-0" style="cursor:pointer"><i class="bi bi-upload me-1"></i>${t('upload_img')||t('upload')||'Upload'}<input id="pimg" type="file" accept="image/*" hidden></label></div></div>`;
+  modal(t('add_product'),txt('pn',t('pname'))+`<div class="row"><div class="col-6">${field('pc',t('category'),`<select id="pc" class="form-select">${opts(['paper','board','film','raw'].map(k=>[k,t('cat_'+k)]))}</select>`)}</div><div class="col-6">${field('pstat',t('prod_status')||t('status'),`<select id="pstat" class="form-select">${opts([['active',t('status_active')||'Active'],['inactive',t('status_inactive')||'Inactive']],'active')}</select>`)}</div></div>`+`<div class="row"><div class="col-6">${num('pk',t('open_stock'),0)}</div><div class="col-6">${num('pm',t('min_stock'),0)}</div><div class="col-6">${num('pco',t('cost_price'))}</div><div class="col-6">${num('ppr',t('sell_price'))}</div></div>`+field('pdesc',t('prod_desc')||'Description',`<textarea id="pdesc" class="form-control" rows="2"></textarea>`)+imgBlock,()=>{
     clr(['pn','pco','ppr']);let e=0;const n=$('#pn').value.trim();
     if(!n)e=bad('pn',t('req'));if(!(+$('#pco').value>0))e=bad('pco',t('pos_qty'));if(!(+$('#ppr').value>0))e=bad('ppr',t('pos_qty'));if(e)return false;
-    const newProd = {n:{bn:n,en:n},cat:$('#pc').value,kg:+$('#pk').value||0,min:+$('#pm').value||0,cost:+$('#pco').value,price:+$('#ppr').value,sold:0,sku:'PK-'+(101+D.products.length)};
+    const openKg = +$('#pk').value||0;
+    const newProd = {n:{bn:n,en:n},cat:$('#pc').value,kg:0,purchased:openKg,min:+$('#pm').value||0,cost:+$('#pco').value,price:+$('#ppr').value,sold:0,sku:'PK-'+(101+D.products.length),desc:$('#pdesc').value.trim(),status:$('#pstat').value||'active',img:imgData,adjHistory:[]};
     D.products.push(newProd);
+    const newIdx = D.products.length - 1;
+    if(openKg > 0){
+      if(window.FIN) window.FIN.recordStockMove(F, {p:newIdx,qty:openKg,isIn:true,kind:'adjustment',ty:'Opening Stock',ref:newProd.sku,remarks:'Opening stock on product creation'});
+      else newProd.kg = openKg;
+    }
     if(typeof LOG!=='undefined') LOG.add({uid:F.S.user?.id,u:F.S.user?.n?.bn,r:F.S.role,m:'products',t:'save',recordType:'product',recordId:newProd.sku,msg:`নতুন পণ্য যোগ: ${n}`});
     toast(t('added_ok'),'check-circle');F.route(false);
   });
+  $('#pimg')?.addEventListener('change',ev=>{const fl=ev.target.files?.[0];if(!fl)return;const r=new FileReader();r.onload=()=>{imgData=r.result||'';$('#pimg_prev').innerHTML=imgData?`<img src="${imgData}" style="width:100%;height:100%;object-fit:cover">`:`<i class="bi bi-box-seam text-secondary fs-4"></i>`};r.readAsDataURL(fl)});
 };
 
 ACT.cadd=()=>{
   const{t,D,toast}=F;
-  modal(t('add_customer'),txt('cn',t('cust_name'))+txt('cph',t('phone'))+num('cl',t('limit_amt'))+num('cd',t('open_due'),0),()=>{
+  modal(t('add_customer'),txt('cn',t('cust_name'))+txt('cph',t('phone'))+txt('caddr',t('address')||'Address')+num('cl',t('limit_amt'))+num('cd',t('open_due'),0),()=>{
     clr(['cn','cph','cl']);let e=0;const n=$('#cn').value.trim();
     if(!n)e=bad('cn',t('req'));if(!/^[0-9+\- ]{10,16}$/.test($('#cph').value.trim()))e=bad('cph',t('bad_phone'));if(!(+$('#cl').value>0))e=bad('cl',t('pos_qty'));if(e)return false;
     const d=+$('#cd').value||0;
-    const newCust = {bn:n,en:n,v:0,due:d,days:d?1:0,phone:$('#cph').value.trim(),limit:+$('#cl').value};
+    const code='CUST-'+(101+D.customers.length);
+    const newCust = {code,bn:n,en:n,v:0,due:d,openingDue:d,days:d?1:0,phone:$('#cph').value.trim(),address:$('#caddr').value.trim(),limit:+$('#cl').value,status:'active'};
     D.customers.push(newCust);
-    if(typeof LOG!=='undefined') LOG.add({uid:F.S.user?.id,u:F.S.user?.n?.bn,r:F.S.role,m:'customers',t:'save',recordType:'customer',recordId:'CUST-'+D.customers.length,msg:`নতুন কাস্টমার যোগ: ${n}`});
+    if(typeof LOG!=='undefined') LOG.add({uid:F.S.user?.id,u:F.S.user?.n?.bn,r:F.S.role,m:'customers',t:'save',recordType:'customer',recordId:code,msg:`নতুন কাস্টমার যোগ: ${n}`});
     toast(t('added_ok'),'check-circle');F.route(false);
   });
 };
 
 ACT.sadd=()=>{
   const{t,D,toast}=F;
-  modal(t('add_supplier'),txt('sn',t('supplier'))+txt('sph',t('phone'))+`<div class="row"><div class="col-6">${field('sty',t('type'),`<select id="sty" class="form-select">${opts([['local',t('local')],['overseas',t('overseas')]])}</select>`)}</div><div class="col-6">${field('scu',t('currency'),`<select id="scu" class="form-select">${opts(['BDT','USD','RMB'].map(c=>[c,c]))}</select>`)}</div></div>`+num('sp',t('open_due'),0),()=>{
+  modal(t('add_supplier'),txt('sn',t('supplier'))+txt('sph',t('phone'))+txt('saddr',t('address')||'Address')+`<div class="row"><div class="col-6">${field('sty',t('type'),`<select id="sty" class="form-select">${opts([['local',t('local')],['overseas',t('overseas')]])}</select>`)}</div><div class="col-6">${field('scu',t('currency'),`<select id="scu" class="form-select">${opts(['BDT','USD','RMB'].map(c=>[c,c]))}</select>`)}</div></div>`+num('sp',t('open_due'),0),()=>{
     clr(['sn']);const n=$('#sn').value.trim();if(!n)return !bad('sn',t('req'));const p=+$('#sp').value||0;
-    const newSup = {bn:n,en:n,type:$('#sty').value,cur:$('#scu').value,payable:p,phone:$('#sph').value.trim()||'—',tx:[]};
+    const code='SUP-'+(101+D.suppliers.length);
+    const newSup = {code,bn:n,en:n,type:$('#sty').value,cur:$('#scu').value,payable:p,openingPayable:p,phone:$('#sph').value.trim()||'—',address:$('#saddr').value.trim(),status:'active',tx:[]};
     D.suppliers.push(newSup);D.cashBank.payable+=p;
-    if(typeof LOG!=='undefined') LOG.add({uid:F.S.user?.id,u:F.S.user?.n?.bn,r:F.S.role,m:'suppliers',t:'save',recordType:'supplier',recordId:'SUP-'+D.suppliers.length,msg:`নতুন সাপ্লায়ার যোগ: ${n}`});
+    if(typeof LOG!=='undefined') LOG.add({uid:F.S.user?.id,u:F.S.user?.n?.bn,r:F.S.role,m:'suppliers',t:'save',recordType:'supplier',recordId:code,msg:`নতুন সাপ্লায়ার যোগ: ${n}`});
     toast(t('added_ok'),'check-circle');F.route(false);
   });
 };

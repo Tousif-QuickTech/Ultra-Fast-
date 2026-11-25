@@ -3,14 +3,14 @@
 const $=s=>document.querySelector(s),app=()=>window.FMSAPP;let box=null,sel=0,flat=[];
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const hl=(s,q)=>{const i=q?s.toLowerCase().indexOf(q):-1;return i<0?esc(s):esc(s.slice(0,i))+'<mark>'+esc(s.slice(i,i+q.length))+'</mark>'+esc(s.slice(i+q.length))};
-const PG=[['dashboard','speedometer2'],['products','boxes'],['purchase','cart-check'],['import','globe-americas'],['suppliers','building'],['sales','receipt'],['customers','people'],['bill-ledger','journal-bookmark'],['accounts','journal-text'],['income','graph-up-arrow'],['expenses','cash-stack'],['loans','bank'],['hrm','person-badge'],['reports','bar-chart-line'],['data','arrow-down-up'],['logs','clock-history'],['settings','gear']];
+const PG=[['dashboard','speedometer2'],['products','boxes'],['purchase','cart-check'],['import','globe-americas'],['suppliers','building'],['sales','receipt'],['customers','people'],['dues','wallet-fill'],['bill-ledger','journal-bookmark'],['accounts','journal-text'],['income','graph-up-arrow'],['expenses','cash-stack'],['loans','bank'],['hrm','person-badge'],['purchase-reports','file-earmark-spreadsheet'],['reports','bar-chart-line'],['data','arrow-down-up'],['logs','clock-history'],['settings','gear']];
 function results(q){const f=app();if(!f)return[];const{t,L,D,can,A}=f,ql=q.trim().toLowerCase(),out=[],push=(g,x)=>{let b=out.find(o=>o.g===g);if(!b)out.push(b={g,items:[]});if(b.items.length<5)b.items.push(x)};
  PG.filter(p=>can(p[0])&&(!ql||t('nav_'+p[0]).toLowerCase().includes(ql))).forEach(p=>push('gs_pages',{ic:p[1],ti:t('nav_'+p[0]),sub:'',go:p[0]}));
- if(!ql){if(can('sales'))push('gs_actions',{ic:'plus-circle',ti:t('new_invoice'),sub:t('nav_sales'),go:'sales',nw:1});if(can('customers'))push('gs_actions',{ic:'cash-coin',ti:t('qa_coll'),sub:t('nav_customers'),go:'customers'});return out}
+ if(!ql){if(can('sales'))push('gs_actions',{ic:'plus-circle',ti:t('new_invoice'),sub:t('nav_sales'),go:'sales',nw:1});if(can('dues'))push('gs_actions',{ic:'wallet-fill',ti:t('nav_dues'),sub:t('cust_due_tab'),go:'dues'});if(can('customers'))push('gs_actions',{ic:'cash-coin',ti:t('qa_coll'),sub:t('nav_customers'),go:'customers'});return out}
  const m=s=>s.toLowerCase().includes(ql);
  if(can('products'))D.products.forEach(p=>{if(m(p.n.bn+' '+p.n.en+' '+(p.sku||'')))push('nav_products',{ic:'boxes',ti:L(p.n),sub:(p.sku||'')+' · '+f.kg(p.kg),go:'products',q:L(p.n),hl:L(p.n)})});
- if(can('customers'))D.customers.forEach(c=>{if(m(c.bn+' '+c.en+' '+(c.phone||'')))push('nav_customers',{ic:'person',ti:L(c),sub:(c.phone||'')+' · '+f.tk(c.due),go:'customers',hl:L(c)})});
- if(can('suppliers')&&D.suppliers)D.suppliers.forEach(c=>{if(m(c.bn+' '+c.en))push('nav_suppliers',{ic:'building',ti:L(c),sub:f.tk(c.payable),go:'suppliers',hl:L(c)})});
+ if(can('customers'))D.customers.forEach(c=>{if(m(c.bn+' '+c.en+' '+(c.phone||'')+' '+(c.code||'')))push('nav_customers',{ic:'person',ti:L(c),sub:(c.code||'')+' '+(c.phone||'')+' · '+f.tk(c.due),go:'customers',hl:L(c)})});
+ if(can('suppliers')&&D.suppliers)D.suppliers.forEach(c=>{if(m(c.bn+' '+c.en+' '+(c.code||'')))push('nav_suppliers',{ic:'building',ti:L(c),sub:(c.code?c.code+' · ':'')+f.tk(c.payable),go:'suppliers',hl:L(c)})});
  if(can('hrm')&&A()&&D.emp)D.emp.forEach(e=>{if(m(e.n.bn+' '+e.n.en+' '+(e.eid||'')))push('nav_hrm',{ic:'person-badge',ti:L(e.n),sub:e.eid||'',go:'hrm',hl:L(e.n)})});
  if(can('sales'))D.invoices.forEach((v,i)=>{if(m(v[0]+' '+D.customers[v[1]].bn+' '+D.customers[v[1]].en))push('nav_sales',{ic:'receipt',ti:v[0],sub:L(D.customers[v[1]])+' · '+f.tk(v[2]),go:'sales',inv:i})});
  return out}

@@ -11,7 +11,22 @@ U.retPanel=()=>{const{t,L,D,tk,kg,panel}=F(),R=D.returns||[];
  return panel(t('pret_title'),R.length?`<div class="tw"><table class="tbl"><thead><tr><th>${t('ship')}</th><th>${t('product')}</th><th class="r">${t('qty_kg')}</th><th class="r">${t('amount')}</th><th>${t('reason')}</th></tr></thead><tbody>${R.map(r=>`<tr><td>${r.ref}</td><td>${L(D.products[r.p].n)}</td><td class="r">${kg(r.q)}</td><td class="r">${tk(r.amt)}</td><td>${r.why}</td></tr>`).join('')}</tbody></table></div>`:`<div class="panel-b text-secondary text-center py-4"><i class="bi bi-inbox fs-3 d-block"></i>${t('empty')}</div>`)};
 ACT.pret=x=>{const f=F(),{t,L,D,tk,kg}=f,i=+x.dataset.i,s=D.shipments[i],p=D.products[s[2]],sp=D.suppliers[s[1]],mx=Math.min(s[3],p.kg);
  modal(t('pret')+' – '+s[0],`<div class="lrow"><span class="l">${t('stock')}</span><span class="ld"></span><span class="v">${kg(p.kg)}</span></div>`+num('rq',t('qty_kg')+' (≤ '+f.n(mx)+')')+txt('rw',t('reason')),()=>{
- clr(['rq','rw']);const q=+$('#rq').value;let e=0;if(!(q>0))e=bad('rq',t('pos_qty'));else if(q>mx)e=bad('rq',t('exceed'));if(!$('#rw').value.trim())e=bad('rw',t('req'));if(e)return false;
- const amt=Math.round(q*p.cost);p.kg-=q;sp.payable=Math.max(0,sp.payable-amt);D.cashBank.payable=Math.max(0,D.cashBank.payable-amt);sp.tx.push(['r',amt,['আজ','Today']]);
- (D.returns=D.returns||[]).unshift({ref:s[0],p:s[2],q,amt,why:$('#rw').value.trim()});f.toast(t('ret_done'),'check-circle');f.route(false)},t('pret'))};
+ clr(['rq','rw']);const q=+$('#rq').value,why=$('#rw').value.trim();let e=0;if(!(q>0))e=bad('rq',t('pos_qty'));else if(q>mx)e=bad('rq',t('exceed'));if(!why)e=bad('rw',t('req'));if(e)return false;
+ const amt=Math.round(q*p.cost);
+ const runner=()=>{
+   if(window.FIN){
+     window.FIN.recordStockMove(f,{p:s[2],qty:q,isIn:false,kind:'purchase_return',ty:t('pret')||'Purchase Return',ref:s[0],purchRef:s[0],party:L(sp),partyType:'supplier',remarks:why});
+     const id='SADJ-'+(++D.txSeq);
+     D.supplierTx=D.supplierTx||[];
+     D.supplierTx.push({id,supIdx:s[1],ts:Date.now(),dtStr:window.FIN.fmtDt(Date.now(),f),type:'purchase_return',typeLabel:'Purchase Return',dir:'debit',amt,ref:s[0],desc:`Purchase return ${s[0]} (${q} KG)`,notes:why,method:'—'});
+     sp.tx.push(['r',amt,['আজ','Today']]);
+     window.FIN.reconcileSupplier(s[1],f);
+     if(typeof LOG!=='undefined') LOG.add({m:'purchase',t:'adjust',recordType:'purchase_return',recordId:id,msg:`ক্রয় ফেরত (${s[0]}): ${q} KG · ${tk(amt)}`});
+   }else{
+     p.kg-=q;sp.payable=Math.max(0,sp.payable-amt);D.cashBank.payable=Math.max(0,D.cashBank.payable-amt);sp.tx.push(['r',amt,['আজ','Today']]);
+   }
+   (D.returns=D.returns||[]).unshift({ref:s[0],p:s[2],q,amt,why});
+ };
+ if(window.FIN?window.FIN.tx(f,runner):(runner(),true)===false)return false;
+ f.toast(t('ret_done'),'check-circle');f.route(false)},t('pret'))};
 })();

@@ -59,7 +59,7 @@ function init(f) {
   if (U.ST && U.ST.inv) {
     if (U.ST.inv.vatEnabled === undefined) {
       const stored = localStorage.getItem('fms-vat-enabled');
-      U.ST.inv.vatEnabled = stored !== null ? stored === 'true' : true;
+      U.ST.inv.vatEnabled = stored === 'true';
     }
   }
 
@@ -309,11 +309,11 @@ function attachRateMemoryToInvoice() {
     }
   });
 
-  // Handle VAT toggle visibility (Requirement 10)
-  const isVatOn = U.ST && U.ST.inv && U.ST.inv.vatEnabled !== false;
+  // Handle VAT toggle visibility (OFF by default unless explicitly enabled in Settings)
+  const isVatOn = window.FIN ? window.FIN.isVatOn() : (U.ST && U.ST.inv && U.ST.inv.vatEnabled === true);
   const vatInput = $('#view input[data-in="vat"]');
   if (vatInput) {
-    const vatCol = vatInput.closest('.col-sm-4');
+    const vatCol = vatInput.closest('[data-vat-col], .col-vat, .col-sm-4, .col-sm-3');
     if (vatCol) vatCol.style.display = isVatOn ? '' : 'none';
     if (!isVatOn) vatInput.value = 0;
   }
@@ -329,14 +329,16 @@ function patchInvoiceSave() {
   ACT.save = () => {
     const f = getF();
     const D = f ? f.D : MOCK;
+    const iv = U.IV;
+    const wasEdit = iv && iv.editingIdx !== undefined && iv.editingIdx !== null;
     const custSelect = $('#view select[data-in="cust"]');
     const custId = custSelect ? +custSelect.value : 0;
-    const invNoEl = $('#view .page-h h2 small');
+    const invNoEl = $('#view .page-h .badge, #view .page-h h2 small');
     const invNo = invNoEl ? invNoEl.textContent.trim() : 'INV-2026-NEW';
 
     // Before saving, memorize rates for this party
     if (custSelect) {
-      const rows = $$('#view .tw table.tbl tbody tr');
+      const rows = $$('#view .tw table.tbl tbody tr, #view #inv-lines-table tbody tr');
       rows.forEach(r => {
         const pSelect = r.querySelector('select[data-in="lp"]');
         const qInput = r.querySelector('input[data-in="lq"]');
@@ -355,58 +357,65 @@ function patchInvoiceSave() {
     // Call original save
     oldSave();
 
-    // After save, if billLedgers exists for this customer, record delivery
-    if (D && D.billLedgers && D.billLedgers[custId] && D.invoices && D.invoices.length) {
+    // After new save, if billLedgers exists for this customer, record delivery entry once
+    if (!wasEdit && D && D.billLedgers && D.billLedgers[custId] && D.invoices && D.invoices.length) {
       const latest = D.invoices[0];
       const entries = D.billLedgers[custId];
-      const lastDue = entries.length ? entries[entries.length - 1].due : (D.customers[custId].due - (latest[2] - latest[3]));
-      const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-');
-      entries.push({
-        dt: now,
-        bNo: String(latest[0]).replace('INV-2026-', ''),
-        wt: '—',
-        r: '—',
-        prev: lastDue,
-        del: latest[2],
-        dep: latest[3],
-        m: latest[3] > 0 ? (latest[7] === 'm_cash' ? 'CASH' : 'DBBL') : '—',
-        due: D.customers[custId].due,
-        mo: 'Current'
-      });
+      const bNo = String(latest[0]).replace('INV-2026-', '');
+      if (!entries.some(e => e.bNo === bNo)) {
+        const lastDue = entries.length ? entries[entries.length - 1].due : Math.max(0, D.customers[custId].due - (latest[2] - latest[3]));
+        const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: '2-digit', year: '2-digit' }).replace(/\//g, '-');
+        entries.push({
+          dt: now,
+          bNo,
+          wt: '—',
+          r: '—',
+          prev: lastDue,
+          del: latest[2],
+          dep: latest[3],
+          m: latest[3] > 0 ? (latest[7] === 'm_cash' ? 'CASH' : 'DBBL') : '—',
+          due: D.customers[custId].due,
+          mo: 'Current'
+        });
+      }
     }
 
-    // Re-attach enhancements to the newly reset invoice form
-    attachRateMemoryToInvoice();
+    // Re-attach enhancements if invoice form stays open
+    if ($('select[data-in="cust"]')) {
+      attachRateMemoryToInvoice();
+    }
   };
   ACT.save._patched = true;
 }
 
 /* =========================================================
-   PURCHASE MODULE AMOUNT DISPLAY & RECORDING (Req 1)
+   PURCHASE MODULE SYNCHRONIZED CREATION (Req 1 & Module 07)
    ========================================================= */
 function enhancePurchasePage() {
   const origPurchase = P.purchase;
   P.purchase = (f) => {
     init(f);
-    origPurchase(f);
-    renderPurchaseAmountStrip();
+    if (window.FIN) window.FIN.boot(f);
+    if (origPurchase) origPurchase(f);
   };
 
-  // Add Purchase Action
+  // Add Purchase Action (Single source in D.purchases + atomic stock & supplier reconciliation)
   ACT.puadd = () => {
     const f = getF();
     if (!f) return;
-    const { t, L, D, tk } = f;
+    const { t, L, D, S } = f;
+    const locStr = S.lang === 'bn' ? 'bn-BD' : 'en-IN';
     const body = `
       <div class="row g-2 g-sm-3">
         <div class="col-12 col-sm-6">${field('pu_sup', t('supplier'), `<select id="pu_sup" class="form-select">${opts(D.suppliers.map((s, i) => [i, L(s)]))}</select>`)}</div>
-        <div class="col-12 col-sm-6">${field('pu_prod', t('product'), `<select id="pu_prod" class="form-select">${opts(D.products.map((p, i) => [i, L(p.n)]))}</select>`)}</div>
-        <div class="col-6 col-sm-6">${field('pu_kg', t('qty_kg'), '<input id="pu_kg" type="number" min="100" step="50" class="form-control" value="10000">')}</div>
-        <div class="col-6 col-sm-6">${field('pu_rate', t('pu_unit_cost') + ' (৳)', '<input id="pu_rate" type="number" min="1" step="1" class="form-control" value="95">')}</div>
-        <div class="col-6 col-sm-6">${field('pu_charges', t('pu_other_charges') + ' (৳)', '<input id="pu_charges" type="number" min="0" step="1000" class="form-control" value="35000">')}</div>
-        <div class="col-6 col-sm-6">${field('pu_paid', t('pu_paid_amt') + ' (৳)', '<input id="pu_paid" type="number" min="0" step="1000" class="form-control" value="500000">')}</div>
-        <div class="col-12 col-sm-6">${field('pu_method', t('method'), `<select id="pu_method" class="form-select">${opts(f.methods().map(k => [k, t(k)]))}</select>`)}</div>
-        <div class="col-12 col-sm-6">${field('pu_eta', t('eta'), '<input id="pu_eta" class="form-control" value="১০ দিন / 10 Days">')}</div>
+        <div class="col-12 col-sm-6">${field('pu_prod', t('product'), `<select id="pu_prod" class="form-select">${opts(D.products.map((p, i) => [i, L(p.n) + ' (' + p.kg + ' KG)']))}</select>`)}</div>
+        <div class="col-6 col-sm-4">${field('pu_kg', t('qty_kg'), '<input id="pu_kg" type="number" min="1" step="50" class="form-control" value="5000">')}</div>
+        <div class="col-6 col-sm-4">${field('pu_rate', t('pu_unit_cost') + ' (৳)', '<input id="pu_rate" type="number" min="1" step="1" class="form-control" value="90">')}</div>
+        <div class="col-6 col-sm-4">${field('pu_charges', t('pu_other_charges') + ' (৳)', '<input id="pu_charges" type="number" min="0" step="500" class="form-control" value="15000">')}</div>
+        <div class="col-6 col-sm-4">${field('pu_paid', t('pu_paid_amt') + ' (৳)', '<input id="pu_paid" type="number" min="0" step="500" class="form-control" value="200000">')}</div>
+        <div class="col-6 col-sm-4">${field('pu_method', t('method'), `<select id="pu_method" class="form-select">${opts(f.methods().map(k => [k, t(k)]))}</select>`)}</div>
+        <div class="col-12 col-sm-4">${field('pu_status', t('status'), `<select id="pu_status" class="form-select">${opts([['received', t('st_received') || 'Received (Add to Stock)'], ['arrived', t('st_arrived') || 'Ordered / Pending Stock']], 'received')}</select>`)}</div>
+        <div class="col-12">${field('pu_note', t('notes') || t('note') || 'Note / Reference', '<input id="pu_note" class="form-control" placeholder="e.g. Challan / Invoice reference">')}</div>
       </div>
       <div class="mt-3 p-3 rounded border" style="background:var(--surface-2)">
         <div class="d-flex justify-content-between mb-1"><span>${t('pu_prod_cost')}:</span><b id="pu_calc_goods">৳0</b></div>
@@ -425,42 +434,128 @@ function enhancePurchasePage() {
       const charges = +$('#pu_charges').value || 0;
       const paid = +$('#pu_paid').value || 0;
       const method = $('#pu_method').value;
-      const eta = $('#pu_eta').value.trim() || '১০ দিন';
+      const status = $('#pu_status').value || 'received';
+      const note = ($('#pu_note')?.value || '').trim();
 
       if (!(kg > 0) || !(rate > 0)) {
-        f.toast(f.t('pos_qty'), 'exclamation-triangle');
+        f.toast(t('pos_qty'), 'exclamation-triangle');
         return false;
       }
 
       const totalAmt = Math.round(kg * rate + charges);
+      if (paid < 0 || paid > totalAmt) {
+        f.toast(t('overpay_err') || 'Paid amount cannot exceed total', 'exclamation-triangle');
+        return false;
+      }
       const dueAmt = Math.max(0, totalAmt - paid);
 
-      // Create new shipment & purchase entry
-      const shipId = 'SH-0' + (458 + D.shipments.length);
-      const poNum = 'PO-2026-' + (89 + (D.purchases ? D.purchases.length : 0));
-      D.shipments.unshift([shipId, supIdx, prodIdx, kg, 'arrived', [eta, eta], rate, charges, totalAmt, paid, dueAmt]);
-      if (!D.purchases) D.purchases = [];
-      D.purchases.unshift({ no: poNum, supIdx, prodIdx, kg, rate, charges, total: totalAmt, paid, due: dueAmt, status: (paid>=totalAmt?'received':'arrived'), d: ['আজ', 'Today'], m: method, by: (f.S.user ? f.L(f.S.user.n) : 'Admin') });
+      const runner = () => {
+        if (!D.purchases) D.purchases = [];
+        if (!D.purchSeq) D.purchSeq = 90 + D.purchases.length;
+        const poNum = 'PO-2026-' + (++D.purchSeq);
+        const sup = D.suppliers[supIdx];
+        const prod = D.products[prodIdx];
+        const now = Date.now();
+        const dtLabel = new Date(now).toLocaleDateString(locStr, { day: '2-digit', month: 'short', year: 'numeric' });
+        const byUser = f.S.user ? f.L(f.S.user.n) : 'Admin';
 
-      // Update supplier payable
-      const sup = D.suppliers[supIdx];
-      sup.payable += dueAmt;
-      D.cashBank.payable += dueAmt;
+        const payments = [];
+        if (paid > 0) {
+          payments.push({
+            id: 'SPAY-' + (++D.txSeq),
+            purchNo: poNum,
+            s: supIdx,
+            dt: now,
+            dtStr: window.FIN ? window.FIN.fmtDtTime(now, f) : dtLabel,
+            amt: paid,
+            m: method,
+            ref: note || poNum,
+            by: byUser,
+            note: 'Initial purchase payment',
+            status: 'posted'
+          });
+        }
 
-      // Deduct paid amount from cash/bank
-      if (paid > 0) {
-        if (method === 'm_cash') D.cashBank.cash -= paid;
-        else D.cashBank.bank -= paid;
-        sup.tx.unshift(['p', totalAmt, ['আজ', 'Today']]);
-        sup.tx.unshift(['m', paid, ['আজ', 'Today']]);
-      } else {
-        sup.tx.unshift(['p', totalAmt, ['আজ', 'Today']]);
-      }
+        D.purchases.unshift({
+          id: poNum,
+          no: poNum,
+          ref: poNum,
+          supIdx,
+          prodIdx,
+          kg,
+          rate,
+          charges,
+          total: totalAmt,
+          paid,
+          due: dueAmt,
+          status,
+          d: ['আজ', 'Today'],
+          ts: now,
+          dtStr: dtLabel,
+          m: method,
+          by: byUser,
+          note,
+          payments,
+          items: [{ p: prodIdx, q: kg, rate }]
+        });
 
-      // Add to daily purchase
-      D.daily.purch[D.daily.purch.length - 1] += totalAmt;
+        // Update stock via centralized stock movement ledger if received
+        if (status === 'received' && prod) {
+          if (window.FIN) {
+            window.FIN.recordStockMove(f, {
+              p: prodIdx,
+              qty: kg,
+              isIn: true,
+              kind: 'purchase',
+              ty: t('pur_in') || 'Purchase In',
+              ref: poNum,
+              purchRef: poNum,
+              party: sup ? L(sup) : 'Supplier',
+              partyType: 'supplier',
+              remarks: note || ('Purchase received: ' + poNum),
+              ts: now
+            });
+          } else {
+            prod.kg += kg;
+          }
+        }
 
-      f.toast(f.t('pu_saved'), 'check-circle');
+        // Cash/Bank movement & supplier ledger reconciliation
+        if (paid > 0) {
+          if (window.FIN) window.FIN.postCashBank(D, method, -paid);
+          else if (method === 'm_cash') D.cashBank.cash = Math.max(0, D.cashBank.cash - paid);
+          else D.cashBank.bank = Math.max(0, D.cashBank.bank - paid);
+        }
+
+        if (D.daily && D.daily.purch && D.daily.purch.length) {
+          D.daily.purch[D.daily.purch.length - 1] += totalAmt;
+        }
+
+        if (window.FIN) {
+          window.FIN.reconcileSupplier(supIdx, f);
+        } else if (sup) {
+          sup.payable += dueAmt;
+          D.cashBank.payable += dueAmt;
+        }
+
+        if (typeof LOG !== 'undefined') {
+          LOG.add({
+            uid: S.user?.id,
+            u: S.user?.n?.bn,
+            r: S.role,
+            m: 'purchase',
+            t: 'save',
+            recordType: 'purchase',
+            recordId: poNum,
+            msg: `নতুন ক্রয় (${poNum}): ${sup ? L(sup) : ''} – ${f.tk(totalAmt)}`
+          });
+        }
+      };
+
+      const res = window.FIN ? window.FIN.tx(f, runner) : (runner(), true);
+      if (res === false) return false;
+
+      f.toast(t('pu_saved'), 'check-circle');
       P.purchase(f);
     }, t('save'));
 
@@ -489,100 +584,7 @@ function enhancePurchasePage() {
   };
 }
 
-function renderPurchaseAmountStrip() {
-  const f = getF();
-  if (!f) return;
-  if ($('#view #pu-summary-strip')) return;
-  const { t, tk, kg, short, D, A } = f;
-  const pageH = $('#view .page-h');
-  if (!pageH) return;
-
-  // Add Action Buttons to Purchase header
-  let btnGroup = pageH.querySelector('.pu-actions');
-  if (!btnGroup) {
-    btnGroup = document.createElement('div');
-    btnGroup.className = 'd-flex gap-2 flex-wrap align-items-center pu-actions';
-    btnGroup.innerHTML = `
-      <button class="btn-o" data-go="reports" data-rep="purchrep"><i class="bi bi-file-earmark-bar-graph"></i> ${t('pu_view_rep')}</button>
-      <button class="btn-a" data-act="puadd"><i class="bi bi-plus-lg"></i> ${t('pu_add')}</button>`;
-    pageH.appendChild(btnGroup);
-  }
-
-  // Calculate totals across all shipments
-  let totKg = 0, totAmt = 0, totPaid = 0, totDue = 0;
-  D.shipments.forEach(s => {
-    totKg += s[3] || 0;
-    const amt = s[9] !== undefined ? s[9] : Math.round(s[3] * 95 + 40000);
-    const pd = s[10] !== undefined ? s[10] : (s[4] === 'received' ? amt : 0);
-    totAmt += amt;
-    totPaid += pd;
-    totDue += (amt - pd);
-  });
-
-  // Insert Purchase Summary Strip
-  let puStrip = $('#view #pu-summary-strip');
-  if (!puStrip) {
-    puStrip = document.createElement('div');
-    puStrip.id = 'pu-summary-strip';
-    puStrip.className = 'strip mb-3';
-    puStrip.style.gridTemplateColumns = 'repeat(4, 1fr)';
-    const firstSection = $('#view section.panel');
-    if (firstSection) firstSection.before(puStrip);
-  }
-
-  puStrip.innerHTML = `
-    <div><span>${t('pu_tot_amount')}</span><b>${short(totAmt)}</b></div>
-    <div><span>${t('pu_rep_qty')}</span><b>${kg(totKg)}</b></div>
-    <div><span>${t('pu_paid_amt')}</span><b class="up">${short(totPaid)}</b></div>
-    <div><span>${t('pu_due_amt')}</span><b class="dn">${short(totDue)}</b></div>`;
-
-  // Update Shipment table headers and rows to show amounts clearly (Requirement 1)
-  const shipTable = $('#view .tw table.tbl');
-  if (shipTable && A()) {
-    const theadTr = shipTable.querySelector('thead tr');
-    if (theadTr && !theadTr.querySelector('.th-pu-amt')) {
-      const ths = [
-        `<th>${t('ship')}</th>`,
-        `<th>${t('supplier')}</th>`,
-        `<th>${t('product')}</th>`,
-        `<th class="r">${t('qty_kg')}</th>`,
-        `<th class="r">${t('rate')}</th>`,
-        `<th class="r th-pu-amt">${t('pu_amount')}</th>`,
-        `<th class="r">${t('due_amt')}</th>`,
-        `<th>${t('status')}</th>`,
-        `<th></th>`
-      ].join('');
-      theadTr.innerHTML = ths;
-
-      const tbody = shipTable.querySelector('tbody');
-      if (tbody) {
-        tbody.innerHTML = D.shipments.map((s, i) => {
-          const prod = D.products[s[2]] || D.products[0];
-          const sup = D.suppliers[s[1]] || D.suppliers[0];
-          const unitRate = s[7] || prod.cost || 95;
-          const totAmt = s[9] || Math.round(s[3] * unitRate + 35000);
-          const dueAmt = s[11] !== undefined ? s[11] : (s[4] === 'received' ? 0 : totAmt);
-
-          return `
-            <tr>
-              <td class="fw-semibold">${s[0]}</td>
-              <td><b>${f.L(sup)}</b></td>
-              <td>${f.L(prod.n)}</td>
-              <td class="r fw-semibold">${kg(s[3])}</td>
-              <td class="r">${tk(unitRate)}</td>
-              <td class="r fw-bold text-primary">${tk(totAmt)}</td>
-              <td class="r ${dueAmt > 0 ? 'dn' : 'up'}">${tk(dueAmt)}</td>
-              <td>${bd(s[4] === 'received' ? 'paid' : 'due', 'st_' + s[4])}</td>
-              <td class="r text-nowrap">
-                <button class="btn-o py-1" data-act="sdocs" data-i="${i}"><i class="bi bi-paperclip"></i>${t('docs')}</button>
-                ${s[4] === 'arrived' ? `<button class="btn-a py-1" data-act="recv" data-i="${i}"><i class="bi bi-box-arrow-in-down"></i>${t('receive')}</button>` : ''}
-              </td>
-            </tr>`;
-        }).join('');
-      }
-    }
-  }
-}
+function renderPurchaseAmountStrip() { /* Unified into modules2.js Purchase view */ }
 
 // Clean event hooks for invoice page
 let invoiceHooksSetup = false;
@@ -655,9 +657,6 @@ addEventListener('hashchange', () => {
     if (location.hash.includes('sales') && $('select[data-in="cust"]')) {
       attachRateMemoryToInvoice();
       patchInvoiceSave();
-    }
-    if (location.hash.includes('purchase')) {
-      renderPurchaseAmountStrip();
     }
   }, 50);
 });
